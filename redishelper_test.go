@@ -1,10 +1,11 @@
 package redishelper
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,15 +19,12 @@ func Test_redisProxy_InitFromURL(t *testing.T) {
 	if err != nil {
 		assert.Error(t, err, "init from url error")
 	}
-	conn, err := proxy.GetConn()
-	if err != nil {
-		assert.Error(t, err, "get conn error")
-	}
-	_, err = conn.Set("teststring", "ok", 10*time.Second).Result()
+	ctx := context.Background()
+	_, err = proxy.Set(ctx, "teststring", "ok", 10*time.Second).Result()
 	if err != nil {
 		assert.Error(t, err, "conn set error")
 	}
-	res, err := conn.Get("teststring").Result()
+	res, err := proxy.Get(ctx, "teststring").Result()
 	if err != nil {
 		assert.Error(t, err, "conn get error")
 	}
@@ -35,7 +33,7 @@ func Test_redisProxy_InitFromURL(t *testing.T) {
 
 func Test_redisProxy_reset(t *testing.T) {
 	proxy := New()
-	proxy.Regist(func(conn *redis.Client) error {
+	proxy.Regist(func(cli GoRedisV8Client) error {
 		t.Log("inited db")
 		return nil
 	})
@@ -49,18 +47,8 @@ func Test_redisProxy_reset(t *testing.T) {
 		assert.Error(t, err, "reset from url error")
 	}
 	cli := redis.NewClient(options)
-	proxy.SetConnect(cli)
-	conn, err := proxy.GetConn()
+	err = proxy.SetConnect(cli)
 	if err != nil {
-		assert.Error(t, err, "get conn error")
+		assert.Error(t, err, "conn reset error")
 	}
-	_, err = conn.Set("teststring", "ok", 10*time.Second).Result()
-	if err != nil {
-		assert.Error(t, err, "conn set error")
-	}
-	res, err := conn.Get("teststring").Result()
-	if err != nil {
-		assert.Error(t, err, "conn get error")
-	}
-	assert.Equal(t, "ok", res)
 }
