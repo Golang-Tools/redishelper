@@ -54,7 +54,7 @@ func (proxy *redisHelper) SetConnect(cli GoRedisV8Client, hooks ...redis.Hook) e
 				if err != nil {
 					log.Error("regist callback get error", log.Dict{"err": err})
 				} else {
-					log.Info("regist callback done")
+					log.Debug("regist callback done")
 				}
 			}()
 		}
@@ -64,7 +64,7 @@ func (proxy *redisHelper) SetConnect(cli GoRedisV8Client, hooks ...redis.Hook) e
 			if err != nil {
 				log.Error("regist callback get error", log.Dict{"err": err})
 			} else {
-				log.Info("regist callback done")
+				log.Debug("regist callback done")
 			}
 		}
 	}

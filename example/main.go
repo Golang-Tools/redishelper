@@ -64,6 +64,7 @@ func runget() {
 	}
 }
 func main() {
+
 	regist()
 	err := redishelper.Proxy.InitFromURL(TEST_REDIS_URL)
 	if err != nil {

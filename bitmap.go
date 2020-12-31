@@ -1,4 +1,5 @@
 //Package redishelper 为代理添加bitmap操作支持
+//bitmap可以用于分布式去重
 package redishelper
 
 import (
