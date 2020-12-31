@@ -1,8 +1,6 @@
 package redishelper
 
 import (
-	"errors"
-
 	log "github.com/Golang-Tools/loggerhelper"
 
 	redis "github.com/go-redis/redis/v8"
@@ -43,7 +41,7 @@ func (proxy *redisHelper) IsOk() bool {
 //@params cli GoRedisV8Client 满足GoRedisV8Client接口的对象的指针
 func (proxy *redisHelper) SetConnect(cli GoRedisV8Client, hooks ...redis.Hook) error {
 	if proxy.IsOk() {
-		return errors.New("不能重复设置代理对象")
+		return ErrProxyAllreadySettedGoRedisV8Client
 	}
 	for _, hook := range hooks {
 		cli.AddHook(hook)
@@ -131,9 +129,14 @@ func (proxy *redisHelper) InitFromFailoverOptionsParallelCallback(options *redis
 }
 
 // Regist 注册回调函数,在init执行后执行回调函数
-func (proxy *redisHelper) Regist(cb Callback) {
+//如果对象已经设置了被代理客户端则无法再注册回调函数
+func (proxy *redisHelper) Regist(cb Callback) error {
+	if proxy.IsOk() {
+		return ErrProxyAllreadySettedGoRedisV8Client
+	}
 	proxy.callBacks = append(proxy.callBacks, cb)
+	return nil
 }
 
-// Helper 默认的redis代理对象
-var Helper = New()
+//Proxy 默认的redis代理对象
+var Proxy = New()
