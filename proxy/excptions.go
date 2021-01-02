@@ -1,4 +1,4 @@
-package redishelper
+package proxy
 
 import (
 	"errors"
