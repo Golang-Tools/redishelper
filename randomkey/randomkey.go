@@ -45,8 +45,8 @@ func InitGenerator(clientID ...uint16) error {
 
 //NextKey 随机生成key
 func NextKey() (string, error) {
-	if generator != nil {
-		return "", ErrDefaultGeneratorAllreadySetted
+	if generator == nil {
+		return "", ErrDefaultGeneratorNotSetYet
 	}
 	id, err := generator.NextID()
 	if err != nil {

@@ -1,22 +1,178 @@
-//Package redishelper 为代理添加bitmap操作支持
+//Package bitmap 为代理添加bitmap操作支持
 //bitmap可以用于分布式去重
-package redishelper
+package bitmap
 
 import (
 	"context"
+	"time"
 
+	log "github.com/Golang-Tools/loggerhelper"
+	helper "github.com/Golang-Tools/redishelper"
 	"github.com/go-redis/redis/v8"
 )
 
-//BitmapIsSetted 检查bitmap某偏移量是否已经被置1
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params key string 使用的键
-//@params offset int64 查看的偏移量
-func (proxy *redisHelper) BitmapIsSetted(ctx context.Context, key string, offset int64) (bool, error) {
-	if !proxy.IsOk() {
-		return false, ErrProxyNotYetSettedGoRedisV8Client
+//Bitmap 位图对象
+type Bitmap struct {
+	Key    string
+	MaxTTL time.Duration
+	client helper.GoRedisV8Client
+}
+
+//New 创建一个新的位图对象
+func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Bitmap {
+	bm := new(Bitmap)
+	bm.client = client
+	bm.Key = key
+	switch len(maxttl) {
+	case 0:
+		{
+			return bm
+		}
+	case 1:
+		{
+			if maxttl[0] != 0 {
+				bm.MaxTTL = maxttl[0]
+				return bm
+			}
+			log.Warn("maxttl必须大于0,maxttl设置无效")
+			return bm
+		}
+	default:
+		{
+			log.Warn("ttl最多只能设置一个,使用第一个作为过期时间")
+			if maxttl[0] != 0 {
+				bm.MaxTTL = maxttl[0]
+				return bm
+			}
+			log.Warn("maxttl必须大于0,maxttl设置无效")
+			return bm
+		}
 	}
-	res, err := proxy.GetBit(ctx, key, offset).Result()
+}
+
+//生命周期操作
+
+//RefreshTTL 刷新key的生存时间
+func (bm *Bitmap) RefreshTTL(ctx context.Context) error {
+	if bm.MaxTTL != 0 {
+		_, err := bm.client.Exists(ctx, bm.Key).Result()
+		if err != nil {
+			if err != redis.Nil {
+				return err
+			}
+			return ErrKeyNotExist
+		}
+		_, err = bm.client.Expire(ctx, bm.Key, bm.MaxTTL).Result()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	return ErrBitmapNotSetMaxTLL
+}
+
+//TTL 查看key的剩余时间
+func (bm *Bitmap) TTL(ctx context.Context) (time.Duration, error) {
+	_, err := bm.client.Exists(ctx, bm.Key).Result()
+	if err != nil {
+		if err != redis.Nil {
+			return 0, err
+		}
+		return 0, ErrKeyNotExist
+	}
+	res, err := bm.client.TTL(ctx, bm.Key).Result()
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
+}
+
+// 写操作
+
+//Set 为bitmap中固定偏移量位置置1
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+//@params offset int64 要置1的偏移量
+func (bm *Bitmap) Set(ctx context.Context, refreshTTL bool, offset int64) error {
+	_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		pipe.SetBit(ctx, bm.Key, offset, 1)
+		if bm.MaxTTL != 0 {
+			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//SetM 为bitmap中多个偏移量位置置1
+// 该操作使用TxPipeline,是原子操作
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+//@params offset int64 要置1的偏移量
+func (bm *Bitmap) SetM(ctx context.Context, refreshTTL bool, offsets ...int64) error {
+	_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, offset := range offsets {
+			pipe.SetBit(ctx, bm.Key, offset, 1)
+		}
+		if bm.MaxTTL != 0 {
+			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//UnSet 为bitmap中固定偏移量位置置0
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+//@params offset int64 要置1的偏移量
+func (bm *Bitmap) UnSet(ctx context.Context, refreshTTL bool, offset int64) error {
+	_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		pipe.SetBit(ctx, bm.Key, offset, 0)
+		if bm.MaxTTL != 0 {
+			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//UnSetM 为bitmap中多个偏移量位置置0
+// 该操作使用TxPipeline,是原子操作
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+//@params offset int64 要置1的偏移量
+func (bm *Bitmap) UnSetM(ctx context.Context, refreshTTL bool, offsets ...int64) error {
+	_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, offset := range offsets {
+			pipe.SetBit(ctx, bm.Key, offset, 0)
+		}
+		if bm.MaxTTL != 0 {
+			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// 读操作
+
+//IsSetted 检查bitmap某偏移量是否已经被置1
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+//@params offset int64 查看的偏移量
+func (bm *Bitmap) IsSetted(ctx context.Context, refreshTTL bool, offset int64) (bool, error) {
+	if refreshTTL {
+		defer bm.RefreshTTL(ctx)
+	}
+	res, err := bm.client.GetBit(ctx, bm.Key, offset).Result()
 	if err != nil {
 		return false, err
 	}
@@ -26,21 +182,19 @@ func (proxy *redisHelper) BitmapIsSetted(ctx context.Context, key string, offset
 	return true, nil
 }
 
-//BitmapCountSetted 检查bitmap中被置1的有多少位
+//CountSetted 检查bitmap中被置1的有多少位
 // 规定报错时返回的第一位是-1
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params key string 使用的键
 //@params scop ...int64 最多2位,第一位表示开始位置,第二位表示结束位置
-func (proxy *redisHelper) BitmapCountSetted(ctx context.Context, key string, scop ...int64) (int64, error) {
-	if !proxy.IsOk() {
-		return -1, ErrProxyNotYetSettedGoRedisV8Client
+func (bm *Bitmap) CountSetted(ctx context.Context, refreshTTL bool, scop ...int64) (int64, error) {
+	if refreshTTL {
+		defer bm.RefreshTTL(ctx)
 	}
 	lenScop := len(scop)
-
 	switch lenScop {
 	case 0:
 		{
-			res, err := proxy.BitCount(ctx, key, nil).Result()
+			res, err := bm.client.BitCount(ctx, bm.Key, nil).Result()
 			if err != nil {
 				return 0, err
 			}
@@ -51,7 +205,7 @@ func (proxy *redisHelper) BitmapCountSetted(ctx context.Context, key string, sco
 			bc := redis.BitCount{
 				Start: scop[0],
 			}
-			res, err := proxy.BitCount(ctx, key, &bc).Result()
+			res, err := bm.client.BitCount(ctx, bm.Key, &bc).Result()
 			if err != nil {
 				return 0, err
 			}
@@ -63,7 +217,7 @@ func (proxy *redisHelper) BitmapCountSetted(ctx context.Context, key string, sco
 				Start: scop[0],
 				End:   scop[1],
 			}
-			res, err := proxy.BitCount(ctx, key, &bc).Result()
+			res, err := bm.client.BitCount(ctx, bm.Key, &bc).Result()
 			if err != nil {
 				return 0, err
 			}
@@ -74,78 +228,6 @@ func (proxy *redisHelper) BitmapCountSetted(ctx context.Context, key string, sco
 			return -1, ErrIndefiniteParameterLength
 		}
 	}
-}
-
-//BitmapSet 为bitmap中固定偏移量位置置1
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params key string 使用的键
-//@params offset int64 要置1的偏移量
-func (proxy *redisHelper) BitmapSet(ctx context.Context, key string, offset int64) error {
-	if !proxy.IsOk() {
-		return ErrProxyNotYetSettedGoRedisV8Client
-	}
-	_, err := proxy.SetBit(ctx, key, offset, 1).Result()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-//BitmapSetM 为bitmap中多个偏移量位置置1
-// 该操作使用TxPipeline,是原子操作
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params key string 使用的键
-//@params offset int64 要置1的偏移量
-func (proxy *redisHelper) BitmapSetM(ctx context.Context, key string, offsets ...int64) error {
-	if !proxy.IsOk() {
-		return ErrProxyNotYetSettedGoRedisV8Client
-	}
-	_, err := proxy.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		for _, offset := range offsets {
-			pipe.SetBit(ctx, key, offset, 1)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-//BitmapUnSet 为bitmap中固定偏移量位置置0
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params key string 使用的键
-//@params offset int64 要置1的偏移量
-func (proxy *redisHelper) BitmapUnSet(ctx context.Context, key string, offset int64) error {
-	if !proxy.IsOk() {
-		return ErrProxyNotYetSettedGoRedisV8Client
-	}
-	_, err := proxy.SetBit(ctx, key, offset, 0).Result()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-//BitmapUnSetM 为bitmap中多个偏移量位置置0
-// 该操作使用TxPipeline,是原子操作
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params key string 使用的键
-//@params offset int64 要置1的偏移量
-func (proxy *redisHelper) BitmapUnSetM(ctx context.Context, key string, offsets ...int64) error {
-	if !proxy.IsOk() {
-		return ErrProxyNotYetSettedGoRedisV8Client
-	}
-	_, err := proxy.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		for _, offset := range offsets {
-			pipe.SetBit(ctx, key, offset, 0)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func hasBit(n byte, pos uint) bool {
@@ -167,11 +249,11 @@ func getBitSet(redisResponse []byte) []bool {
 //SettedOffsets 检查哪些偏移量是已经被置1的
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params key string 使用的键
-func (proxy *redisHelper) BitmapSettedOffsets(ctx context.Context, key string) ([]int64, error) {
-	if !proxy.IsOk() {
-		return nil, ErrProxyNotYetSettedGoRedisV8Client
+func (bm *Bitmap) SettedOffsets(ctx context.Context, refreshTTL bool) ([]int64, error) {
+	if refreshTTL {
+		defer bm.RefreshTTL(ctx)
 	}
-	bitmapstring, err := proxy.Get(ctx, key).Result()
+	bitmapstring, err := bm.client.Get(ctx, bm.Key).Result()
 	if err != nil {
 		return nil, err
 	}

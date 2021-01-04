@@ -2,23 +2,16 @@ package proxy
 
 import (
 	log "github.com/Golang-Tools/loggerhelper"
-
+	helper "github.com/Golang-Tools/redishelper"
 	redis "github.com/go-redis/redis/v8"
 )
 
-//GoRedisV8Client `github.com/go-redis/redis/v8`客户端的接口
-type GoRedisV8Client interface {
-	redis.Cmdable
-	AddHook(hook redis.Hook)
-	Close() error
-}
-
 //Callback redis操作的回调函数
-type Callback func(cli GoRedisV8Client) error
+type Callback func(cli helper.GoRedisV8Client) error
 
 //redisHelper redis客户端的代理
 type redisHelper struct {
-	GoRedisV8Client
+	helper.GoRedisV8Client
 	parallelcallback bool
 	callBacks        []Callback
 }
@@ -39,7 +32,7 @@ func (proxy *redisHelper) IsOk() bool {
 
 //SetConnect 设置连接的客户端
 //@params cli GoRedisV8Client 满足GoRedisV8Client接口的对象的指针
-func (proxy *redisHelper) SetConnect(cli GoRedisV8Client, hooks ...redis.Hook) error {
+func (proxy *redisHelper) SetConnect(cli helper.GoRedisV8Client, hooks ...redis.Hook) error {
 	if proxy.IsOk() {
 		return ErrProxyAllreadySettedGoRedisV8Client
 	}
