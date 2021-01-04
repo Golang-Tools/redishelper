@@ -19,6 +19,9 @@ type Counter struct {
 }
 
 //New 创建一个新的位图对象
+//@params client helper.GoRedisV8Client 客户端对象
+//@params key string bitmap使用的key
+//@params maxttl ...time.Duration 最大存活时间,设置了就执行刷新
 func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Counter {
 	c := new(Counter)
 	c.client = client
@@ -88,9 +91,10 @@ func (c *Counter) TTL(ctx context.Context) (time.Duration, error) {
 }
 
 //Next 加1后的当前计数值
+//如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (c *Counter) Next(ctx context.Context, refreshTTL bool) (int64, error) {
-	if refreshTTL {
+func (c *Counter) Next(ctx context.Context) (int64, error) {
+	if c.MaxTTL != 0 {
 		defer c.RefreshTTL(ctx)
 	}
 	res, err := c.client.IncrBy(ctx, c.Key, 1).Result()
@@ -101,10 +105,11 @@ func (c *Counter) Next(ctx context.Context, refreshTTL bool) (int64, error) {
 }
 
 //NextM 加m后的当前计数
+//如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params value int64 要增加的值.这个值可以为负
-func (c *Counter) NextM(ctx context.Context, refreshTTL bool, value int64) (int64, error) {
-	if refreshTTL {
+func (c *Counter) NextM(ctx context.Context, value int64) (int64, error) {
+	if c.MaxTTL != 0 {
 		defer c.RefreshTTL(ctx)
 	}
 	res, err := c.client.IncrBy(ctx, c.Key, value).Result()
@@ -117,7 +122,6 @@ func (c *Counter) NextM(ctx context.Context, refreshTTL bool, value int64) (int6
 //Reset 重置当前计数器
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (c *Counter) Reset(ctx context.Context) error {
-
 	_, err := c.client.Del(ctx, c.Key).Result()
 	if err != nil {
 		return err

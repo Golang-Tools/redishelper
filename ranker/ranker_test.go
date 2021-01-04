@@ -28,7 +28,7 @@ func Test_ranker_FirstLast(t *testing.T) {
 	ranker := New(cli, "testranker")
 
 	//开始测试
-	ranker.PushOrUpdate(ctx, false, &redis.Z{
+	ranker.PushOrUpdate(ctx, &redis.Z{
 		Member: "a",
 		Score:  1.0,
 	}, &redis.Z{
@@ -41,23 +41,23 @@ func Test_ranker_FirstLast(t *testing.T) {
 		Member: "d",
 		Score:  1.3,
 	})
-	res, err := ranker.First(ctx, false, 2, true)
+	res, err := ranker.First(ctx, 2, true)
 	if err != nil {
 		assert.Error(t, err, "ranker First desc error")
 	}
 	assert.Equal(t, []string{"d", "c"}, res)
-	res, err = ranker.First(ctx, false, 2, false)
+	res, err = ranker.First(ctx, 2, false)
 	if err != nil {
 		assert.Error(t, err, "ranker First error")
 	}
 	assert.Equal(t, []string{"a", "b"}, res)
 
-	res, err = ranker.Last(ctx, false, 2, true)
+	res, err = ranker.Last(ctx, 2, true)
 	if err != nil {
 		assert.Error(t, err, "ranker Last desc error")
 	}
 	assert.Equal(t, []string{"a", "b"}, res)
-	res, err = ranker.Last(ctx, false, 2, false)
+	res, err = ranker.Last(ctx, 2, false)
 	if err != nil {
 		assert.Error(t, err, "ranker Last error")
 	}
@@ -81,7 +81,7 @@ func Test_ranker_GetRank(t *testing.T) {
 	ranker := New(cli, "testranker")
 
 	//开始测试
-	ranker.PushOrUpdate(ctx, false, &redis.Z{
+	ranker.PushOrUpdate(ctx, &redis.Z{
 		Member: "a",
 		Score:  1.0,
 	}, &redis.Z{
@@ -99,17 +99,17 @@ func Test_ranker_GetRank(t *testing.T) {
 		assert.Error(t, err, "ranker len error")
 	}
 	assert.Equal(t, int64(4), res)
-	res, err = ranker.GetRank(ctx, false, "a", false)
+	res, err = ranker.GetRank(ctx, "a", false)
 	if err != nil {
 		assert.Error(t, err, "ranker First desc error")
 	}
 	assert.Equal(t, int64(1), res)
-	res, err = ranker.GetRank(ctx, false, "a", true)
+	res, err = ranker.GetRank(ctx, "a", true)
 	if err != nil {
 		assert.Error(t, err, "ranker First desc error")
 	}
 	assert.Equal(t, int64(4), res)
-	res, err = ranker.GetRank(ctx, false, "e", true)
+	res, err = ranker.GetRank(ctx, "e", true)
 	if err != nil {
 		assert.Equal(t, ErrElementNotExist, err)
 	}
