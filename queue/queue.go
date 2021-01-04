@@ -3,33 +3,44 @@ package queue
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	log "github.com/Golang-Tools/loggerhelper"
 	helper "github.com/Golang-Tools/redishelper"
 	"github.com/go-redis/redis/v8"
-	"github.com/prometheus/common/log"
 )
 
+//Message 消息接口,消息可以被序列化为[]byte
 type Message interface {
 	ToBytes() ([]byte, error)
-	InitFromBytes([]byte) error
 }
 
+//FromBytesFunc 将[]byte序列化为Message的函数
+type FromBytesFunc func([]byte) (Message, error)
+
+// Handdler 处理消息的回调函数
+//@params msg Message 满足Message接口的对象
 type Handdler func(msg Message) error
 
 //Queue 消息队列
 type Queue struct {
-	Key       string
-	MaxTTL    time.Duration
-	client    helper.GoRedisV8Client
-	handdlers []Handdler
+	Key             string
+	MaxTTL          time.Duration
+	client          helper.GoRedisV8Client
+	handdlers       []Handdler
+	listenCtxCancel context.CancelFunc
 }
 
-//New 新建一个PubSub主题
-func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Queue {
+//NewQueue 新建一个PubSub主题
+//@params client helper.GoRedisV8Client 客户端对象
+//@params key string queue使用的键
+//@params maxttl ...time.Duration 键的最长过期时间,最多填1位,不填则不设置
+func NewQueue(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Queue {
 	q := new(Queue)
 	q.Key = key
 	q.client = client
+	q.handdlers = []Handdler{}
 	switch len(maxttl) {
 	case 0:
 		{
@@ -58,13 +69,19 @@ func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Qu
 }
 
 //RegistHanddler 将回调函数注册到queue上
-func (q *Queue) RegistHanddler(fn Handdler) {
+//@params fn Handdler 注册到消息上的回调函数
+func (q *Queue) RegistHanddler(fn Handdler) error {
+	if q.listenCtxCancel != nil {
+		return ErrQueueAlreadyListened
+	}
 	q.handdlers = append(q.handdlers, fn)
+	return nil
 }
 
 //生命周期操作
 
 //RefreshTTL 刷新key的生存时间
+//@params ctx context.Context 请求的上下文
 func (q *Queue) RefreshTTL(ctx context.Context) error {
 	if q.MaxTTL != 0 {
 		_, err := q.client.Exists(ctx, q.Key).Result()
@@ -84,6 +101,7 @@ func (q *Queue) RefreshTTL(ctx context.Context) error {
 }
 
 //TTL 查看key的剩余时间
+//@params ctx context.Context 请求的上下文
 func (q *Queue) TTL(ctx context.Context) (time.Duration, error) {
 	_, err := q.client.Exists(ctx, q.Key).Result()
 	if err != nil {
@@ -100,16 +118,22 @@ func (q *Queue) TTL(ctx context.Context) (time.Duration, error) {
 }
 
 // Len 查看当前队列长度
+//@params ctx context.Context 请求的上下文
 func (q *Queue) Len(ctx context.Context) (int64, error) {
 	return q.client.LLen(ctx, q.Key).Result()
 }
 
 //Put 向队列中放入数据
-func (q *Queue) Put(ctx context.Context, refreshTTL bool, values ...interface{}) error {
+//@params ctx context.Context 请求的上下文
+func (q *Queue) Put(ctx context.Context, refreshTTL bool, msg Message) error {
+	msgbytes, err := msg.ToBytes()
+	if err != nil {
+		return err
+	}
 	if refreshTTL {
-		_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.LPush(ctx, q.Key, values...)
-			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		_, err := q.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.LPush(ctx, q.Key, msgbytes)
+			pipe.Expire(ctx, q.Key, q.MaxTTL)
 			return nil
 		})
 		if err != nil {
@@ -117,7 +141,7 @@ func (q *Queue) Put(ctx context.Context, refreshTTL bool, values ...interface{})
 		}
 		return nil
 	}
-	_, err := q.client.LPush(ctx, q.Key, values...).Result()
+	_, err = q.client.LPush(ctx, q.Key, msgbytes).Result()
 	if err != nil {
 		return err
 	}
@@ -125,40 +149,91 @@ func (q *Queue) Put(ctx context.Context, refreshTTL bool, values ...interface{})
 }
 
 //Get 从队列中取出数据,timeout为0则表示一直阻塞直到有数据
-func (q *Queue) Get(ctx context.Context, refreshTTL bool) (*QueueMessage, error) {
+//@params ctx context.Context 请求的上下文
+func (q *Queue) Get(ctx context.Context, refreshTTL bool, timeout time.Duration, fn FromBytesFunc) (Message, error) {
 	if refreshTTL {
-		defer bm.RefreshTTL(ctx)
+		defer q.RefreshTTL(ctx)
 	}
-	res, err := q.client.BRPop(timeout, q.Name).Result()
+	res, err := q.client.BRPop(ctx, timeout, q.Key).Result()
 	if err != nil {
 		return nil, err
 	}
 	if len(res) != 2 {
-		return nil, ErrQueueGetNotMatch
+		return nil, fmt.Errorf("queue获得错误的返回: %v", res)
 	}
-	m := &Message{
-		Topic:   res[0],
-		Payload: []byte(res[1]),
-	}
-	return m, nil
+	return fn([]byte(res[1]))
 }
 
 //GetNoWait 从队列中取出数据,timeout为0则表示一直阻塞直到有数据
-func (q *Queue) GetNoWait(ctx context.Context, refreshTTL bool) (*QueueMessage, error) {
+//@params ctx context.Context 请求的上下文
+func (q *Queue) GetNoWait(ctx context.Context, refreshTTL bool, fn FromBytesFunc) (Message, error) {
 	if refreshTTL {
-		defer bm.RefreshTTL(ctx)
+		defer q.RefreshTTL(ctx)
 	}
-	res, err := q.client.RPop(q.Name).Result()
+	res, err := q.client.RPop(ctx, q.Key).Result()
 	if err != nil {
 		return nil, err
 	}
-	m := &QueueMessage{
-		Topic:   q.Name,
-		Payload: res,
-	}
-	return m, nil
+	return fn([]byte(res))
 }
 
-func Listen(asyncHanddler bool) {
+//Listen 监听一个队列
+func (q *Queue) Listen(refreshTTL bool, fn FromBytesFunc, asyncHanddler bool) error {
+	defer func() {
+		q.listenCtxCancel = nil
+	}()
+	if q.listenCtxCancel != nil {
+		return ErrQueueAlreadyListened
+	}
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	q.listenCtxCancel = cancel
+	// Loop:
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			{
+				msg, err := q.Get(ctx, refreshTTL, 1*time.Second, fn)
+				if err != nil {
+					if err == redis.Nil {
+						continue
+					} else {
+						log.Error("queue get message error", log.Dict{"err": err})
+						return err
+						// break Loop
+					}
 
+				} else {
+					if asyncHanddler {
+						for _, handdler := range q.handdlers {
+							go func(handdler Handdler) {
+								err := handdler(msg)
+								if err != nil {
+									log.Error("message handdler get error", log.Dict{"err": err})
+								}
+							}(handdler)
+						}
+					} else {
+						for _, handdler := range q.handdlers {
+							err := handdler(msg)
+							if err != nil {
+								log.Error("message handdler get error", log.Dict{"err": err})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+//StopListening 停止监听
+func (q *Queue) StopListening() error {
+	if q.listenCtxCancel == nil {
+		return ErrQueueNotListeningYet
+	}
+	q.listenCtxCancel()
+	return nil
 }

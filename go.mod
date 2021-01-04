@@ -6,6 +6,7 @@ require (
 	github.com/Golang-Tools/loggerhelper v0.0.3
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/chilts/sid v0.0.0-20190607042430-660e94789ec9
+	github.com/deckarep/golang-set v1.7.1
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-redis/redis/v7 v7.4.0
 	github.com/go-redis/redis/v8 v8.4.4
