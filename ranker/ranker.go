@@ -1,12 +1,12 @@
 //Package ranker 排序器类型
 //ranker可以用于分布式排序操作
+//即多个worker分别计算更新一部分元素的权重,业务端则只负责读取结果
 package ranker
 
 import (
 	"context"
 	"time"
 
-	helper "github.com/Golang-Tools/redishelper"
 	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/common/log"
 )
@@ -15,14 +15,14 @@ import (
 type Ranker struct {
 	Key    string
 	MaxTTL time.Duration
-	client helper.GoRedisV8Client
+	client redis.UniversalClient
 }
 
 //New 新建一个排序器
-//@params client helper.GoRedisV8Client 客户端对象
+//@params client redis.UniversalClient 客户端对象
 //@params key string bitmap使用的key
 //@params maxttl ...time.Duration 最大存活时间,设置了就执行刷新
-func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Ranker {
+func New(client redis.UniversalClient, key string, maxttl ...time.Duration) *Ranker {
 	r := new(Ranker)
 	r.client = client
 	r.Key = key

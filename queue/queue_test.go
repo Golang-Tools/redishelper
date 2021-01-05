@@ -7,18 +7,13 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	message "github.com/Golang-Tools/redishelper/message"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
 
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
-
-type StringMessage string
-
-func (s StringMessage) ToBytes() ([]byte, error) {
-	return []byte(s), nil
-}
 
 func Test_queue_put(t *testing.T) {
 	// 准备工作
@@ -34,14 +29,14 @@ func Test_queue_put(t *testing.T) {
 	if err != nil {
 		assert.Error(t, err, "FlushDB error")
 	}
-	q := NewQueue(cli, "test_queue")
+	q := New(cli)
 
 	//开始测试
-	err = q.Put(ctx, false, StringMessage("test1"))
+	err = q.Publish(ctx, []byte("test1"), "test_queue")
 	if err != nil {
 		assert.Error(t, err, "queue put error")
 	}
-	res, err := q.Len(ctx)
+	res, err := q.Len(ctx, "test_queue")
 	if err != nil {
 		assert.Error(t, err, "queue len error")
 	}
@@ -62,22 +57,23 @@ func Test_queue_listen(t *testing.T) {
 	if err != nil {
 		assert.Error(t, err, "FlushDB error")
 	}
-	q := NewQueue(cli, "test_queue")
+	q := New(cli)
 
 	//开始测试
-	q.RegistHanddler(func(msg Message) error {
+	q.Subscribe("test_queue", func(msg *message.Message) error {
 		log.Info("get mes", log.Dict{"msg": msg})
 		return nil
 	})
-	go q.Listen(false, func(msgbytes []byte) (Message, error) { return StringMessage(msgbytes), nil }, false)
-
+	go q.Listen(false, "test_queue")
+	defer q.StopListening()
 	for _, ele := range []int{1, 2, 3} {
 		time.Sleep(time.Second)
-		err = q.Put(ctx, false, StringMessage(fmt.Sprintf("test-%d", ele)))
+		err = q.Publish(ctx, []byte(fmt.Sprintf("test-%d", ele)), "test_queue")
 		if err != nil {
 			assert.Error(t, err, "queue put error")
 		}
 	}
+	time.Sleep(time.Second)
 }
 
 // func Test_queueConsumer_Subscribe(t *testing.T) {

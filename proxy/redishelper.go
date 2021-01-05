@@ -2,16 +2,15 @@ package proxy
 
 import (
 	log "github.com/Golang-Tools/loggerhelper"
-	helper "github.com/Golang-Tools/redishelper"
 	redis "github.com/go-redis/redis/v8"
 )
 
 //Callback redis操作的回调函数
-type Callback func(cli helper.GoRedisV8Client) error
+type Callback func(cli redis.UniversalClient) error
 
 //redisHelper redis客户端的代理
 type redisHelper struct {
-	helper.GoRedisV8Client
+	redis.UniversalClient
 	parallelcallback bool
 	callBacks        []Callback
 }
@@ -24,26 +23,26 @@ func New() *redisHelper {
 
 // IsOk 检查代理是否已经可用
 func (proxy *redisHelper) IsOk() bool {
-	if proxy.GoRedisV8Client == nil {
+	if proxy.UniversalClient == nil {
 		return false
 	}
 	return true
 }
 
 //SetConnect 设置连接的客户端
-//@params cli GoRedisV8Client 满足GoRedisV8Client接口的对象的指针
-func (proxy *redisHelper) SetConnect(cli helper.GoRedisV8Client, hooks ...redis.Hook) error {
+//@params cli UniversalClient 满足redis.UniversalClient接口的对象的指针
+func (proxy *redisHelper) SetConnect(cli redis.UniversalClient, hooks ...redis.Hook) error {
 	if proxy.IsOk() {
-		return ErrProxyAllreadySettedGoRedisV8Client
+		return ErrProxyAllreadySettedUniversalClient
 	}
 	for _, hook := range hooks {
 		cli.AddHook(hook)
 	}
-	proxy.GoRedisV8Client = cli
+	proxy.UniversalClient = cli
 	if proxy.parallelcallback {
 		for _, cb := range proxy.callBacks {
 			go func() {
-				err := cb(proxy.GoRedisV8Client)
+				err := cb(proxy.UniversalClient)
 				if err != nil {
 					log.Error("regist callback get error", log.Dict{"err": err})
 				} else {
@@ -53,7 +52,7 @@ func (proxy *redisHelper) SetConnect(cli helper.GoRedisV8Client, hooks ...redis.
 		}
 	} else {
 		for _, cb := range proxy.callBacks {
-			err := cb(proxy.GoRedisV8Client)
+			err := cb(proxy.UniversalClient)
 			if err != nil {
 				log.Error("regist callback get error", log.Dict{"err": err})
 			} else {
@@ -125,7 +124,7 @@ func (proxy *redisHelper) InitFromFailoverOptionsParallelCallback(options *redis
 //如果对象已经设置了被代理客户端则无法再注册回调函数
 func (proxy *redisHelper) Regist(cb Callback) error {
 	if proxy.IsOk() {
-		return ErrProxyAllreadySettedGoRedisV8Client
+		return ErrProxyAllreadySettedUniversalClient
 	}
 	proxy.callBacks = append(proxy.callBacks, cb)
 	return nil

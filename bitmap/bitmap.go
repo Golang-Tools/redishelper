@@ -7,7 +7,6 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	helper "github.com/Golang-Tools/redishelper"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -15,14 +14,14 @@ import (
 type Bitmap struct {
 	Key    string
 	MaxTTL time.Duration
-	client helper.GoRedisV8Client
+	client redis.UniversalClient
 }
 
 //New 创建一个新的位图对象
-//@params client helper.GoRedisV8Client 客户端对象
+//@params client redis.UniversalClient 客户端对象
 //@params key string bitmap使用的key
 //@params maxttl ...time.Duration 最大存活时间,设置了就执行刷新
-func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Bitmap {
+func New(client redis.UniversalClient, key string, maxttl ...time.Duration) *Bitmap {
 	bm := new(Bitmap)
 	bm.client = client
 	bm.Key = key

@@ -1,51 +1,48 @@
-package redishelper
+package pubsub
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/message"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
 
+// TEST_REDIS_URL 测试用的redis地址
+const TEST_REDIS_URL = "redis://localhost:6379"
+
 func Test_pubsubConsumer_Subscribe(t *testing.T) {
-	proxy := New()
-	err := proxy.InitFromURL(TEST_REDIS_URL)
-	defer proxy.Close()
+	// 准备工作
+	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
 		assert.Error(t, err, "init from url error")
 	}
-	conn, err := proxy.GetConn()
-	if err != nil {
-		assert.Error(t, err, "GetConn error")
-	}
-	_, err = conn.FlushDB().Result()
+	cli := redis.NewClient(options)
+	defer cli.Close()
+
+	ctx := context.Background()
+	_, err = cli.FlushDB(ctx).Result()
 	if err != nil {
 		assert.Error(t, err, "FlushDB error")
 	}
-	go func() {
-
-		producer := proxy.NewPubSubProducer("test_pubsub")
-		time.Sleep(1 * time.Second)
-		_, err := producer.Publish("test")
+	q := New(cli)
+	//开始测试
+	q.Subscribe("test_queue", func(msg *message.Message) error {
+		log.Info("get mes", log.Dict{"msg": msg})
+		return nil
+	})
+	go q.Listen(false, "test_queue")
+	defer q.StopListening()
+	for _, ele := range []int{1, 2, 3} {
+		time.Sleep(time.Second)
+		err = q.Publish(ctx, []byte(fmt.Sprintf("test-%d", ele)), "test_queue")
 		if err != nil {
-			assert.Error(t, err, "Producer error")
+			assert.Error(t, err, "queue put error")
 		}
-	}()
-
-	ctx := context.Background()
-	consumer := proxy.NewPubSubConsumer([]string{"test_pubsub"})
-
-	go func() {
-		time.Sleep(10 * time.Second)
-		consumer.UnSubscribe(consumer.Topics...)
-		consumer.Close()
-	}()
-	ch, err := consumer.Subscribe(ctx)
-	if err != nil {
-		assert.Error(t, err, "Subscribe error")
 	}
-	for msg := range ch {
-		assert.Equal(t, "test_pubsub", msg.Channel)
-	}
+	time.Sleep(time.Second)
 }

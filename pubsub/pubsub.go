@@ -1,143 +1,133 @@
-package redishelper
+package pubsub
 
 import (
 	"context"
-	"fmt"
+	"sync"
 
-	"github.com/go-redis/redis/v7"
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/message"
+	"github.com/go-redis/redis/v8"
 )
 
-//PubSubTopic 流主题
-type PubSubTopic struct {
-	proxy  *redisHelper
-	Name   string
-	pubsub *redis.PubSub
+//PubSub 发布订阅器
+type PubSub struct {
+	client        redis.UniversalClient
+	handdlers     map[string][]message.Handdler
+	handdlerslock sync.RWMutex
+	listenPubsub  *redis.PubSub
 }
 
-//NewPubSubTopic 新建一个PubSub主题
-func NewPubSubTopic(proxy *redisHelper, name string) *PubSubTopic {
-	s := new(PubSubTopic)
-	s.Name = name
-	s.proxy = proxy
+//New 新建一个发布订阅器
+func New(client redis.UniversalClient) *PubSub {
+	s := new(PubSub)
+	s.client = client
+	s.handdlers = map[string][]message.Handdler{}
+	s.handdlerslock = sync.RWMutex{}
 	return s
 }
 
-//Publish 向发布订阅主题发送消息
-func (topic *PubSubTopic) Publish(value interface{}) (int64, error) {
-	if !topic.proxy.IsOk() {
-		return 0, ErrHelperNotInited
+//Subscribe 将回调函数注册到queue上
+//@params fn Handdler 注册到消息上的回调函数
+func (p *PubSub) Subscribe(topic string, fn message.Handdler) error {
+	// if q.listenCtxCancel != nil {
+	// 	return ErrQueueAlreadyListened
+	// }
+	p.handdlerslock.Lock()
+	_, ok := p.handdlers[topic]
+	if ok {
+		p.handdlers[topic] = append(p.handdlers[topic], fn)
+	} else {
+		p.handdlers[topic] = []message.Handdler{fn}
 	}
-	conn, err := topic.proxy.GetConn()
+	p.handdlerslock.Unlock()
+	return nil
+}
+
+//UnSubscribe 将回调函数注册到queue上
+//@params fn Handdler 注册到消息上的回调函数
+func (p *PubSub) UnSubscribe(topic string) error {
+	// if q.listenCtxCancel != nil {
+	// 	return ErrQueueAlreadyListened
+	// }
+	p.handdlerslock.Lock()
+	_, ok := p.handdlers[topic]
+	if ok {
+		delete(p.handdlers, topic)
+	}
+	p.handdlerslock.Unlock()
+	return nil
+}
+
+//Publish 向发布订阅器中放入数据
+//@params ctx context.Context 请求的上下文
+//@params payload []byte 发送的消息负载
+//@params topics ...string 发送消息到哪些key
+func (p *PubSub) Publish(ctx context.Context, payload []byte, topics ...string) error {
+	if len(topics) <= 0 {
+		return ErrNeedToPointOutTopics
+	}
+	_, err := p.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, key := range topics {
+			pipe.Publish(ctx, key, payload)
+		}
+		return nil
+	})
 	if err != nil {
-		return 0, err
+		return err
 	}
-
-	res, err := conn.Publish(topic.Name, value).Result()
-	if err != nil {
-		fmt.Println("publish error:", err.Error())
-	}
-	return res, err
+	return nil
 }
 
-func (topic *PubSubTopic) Subscribe(ctx context.Context) (<-chan *redis.Message, error) {
-	if !topic.proxy.IsOk() {
-		return nil, ErrHelperNotInited
+//Listen 监听一个发布订阅器
+//@params asyncHanddler bool 是否并行执行回调
+//@params topics ...string 监听的发布订阅器
+func (p *PubSub) Listen(asyncHanddler bool, topics ...string) error {
+	if len(topics) <= 0 {
+		return ErrNeedToPointOutTopics
 	}
-	conn, err := topic.proxy.GetConn()
-	if err != nil {
-		return nil, err
+	if p.listenPubsub != nil {
+		return ErrPubSubAlreadyListened
 	}
-
-	topic.pubsub = conn.WithContext(ctx).Subscribe(topic.Name)
-	_, err = topic.pubsub.Receive()
-	if err != nil {
-		return nil, err
+	defer func() {
+		p.listenPubsub = nil
+	}()
+	ctx := context.Background()
+	pubsub := p.client.Subscribe(ctx, topics...)
+	p.listenPubsub = pubsub
+	ch := pubsub.Channel()
+	for m := range ch {
+		msg, _ := message.NewFromRedisMessage(m)
+		p.handdlerslock.Lock()
+		handdlers, ok := p.handdlers[msg.Topic]
+		if ok {
+			if asyncHanddler {
+				for _, handdler := range handdlers {
+					go func(handdler message.Handdler) {
+						err := handdler(msg)
+						if err != nil {
+							log.Error("message handdler get error", log.Dict{"err": err})
+						}
+					}(handdler)
+				}
+			} else {
+				for _, handdler := range handdlers {
+					err := handdler(msg)
+					if err != nil {
+						log.Error("message handdler get error", log.Dict{"err": err})
+					}
+				}
+			}
+		}
+		p.handdlerslock.Unlock()
 	}
-	ch := topic.pubsub.Channel()
-	return ch, err
+	return nil
 }
 
-//UnSubscribe 取消订阅
-func (topic *PubSubTopic) UnSubscribe() error {
-	if topic.pubsub == nil {
-		return ErrPubSubNotSubscribe
+//StopListening 停止监听
+func (p *PubSub) StopListening() error {
+	if p.listenPubsub == nil {
+		return ErrPubSubNotListeningYet
 	}
-	return topic.pubsub.Unsubscribe(topic.Name)
-}
-
-//Close 关闭监听
-func (topic *PubSubTopic) Close() error {
-	if topic.pubsub == nil {
-		return ErrPubSubNotSubscribe
-	}
-	return topic.pubsub.Close()
-}
-
-//pubsubProducer 流对象
-type pubsubProducer struct {
-	Topic *PubSubTopic
-}
-
-func newPubSubProducerFromPubSubTopic(topic *PubSubTopic) *pubsubProducer {
-	s := new(pubsubProducer)
-	s.Topic = topic
-	return s
-}
-
-func newPubSubProducer(proxy *redisHelper, topic string) *pubsubProducer {
-	t := NewPubSubTopic(proxy, topic)
-	s := newPubSubProducerFromPubSubTopic(t)
-	return s
-}
-
-//Publish 向流发送消息
-func (producer *pubsubProducer) Publish(value interface{}) (int64, error) {
-	return producer.Topic.Publish(value)
-}
-
-type pubsubConsumer struct {
-	proxy  *redisHelper //使用的redis连接代理
-	Topics []string     //监听的topic
-	pubsub *redis.PubSub
-}
-
-func newPubSubConsumer(proxy *redisHelper, topics []string) *pubsubConsumer {
-	s := new(pubsubConsumer)
-	s.proxy = proxy
-	s.Topics = topics
-	return s
-}
-
-//Read 订阅流,count可以
-func (consumer *pubsubConsumer) Subscribe(ctx context.Context) (<-chan *redis.Message, error) {
-	if !consumer.proxy.IsOk() {
-		return nil, ErrHelperNotInited
-	}
-	conn, err := consumer.proxy.GetConn()
-	if err != nil {
-		return nil, err
-	}
-	consumer.pubsub = conn.WithContext(ctx).Subscribe(consumer.Topics...)
-	_, err = consumer.pubsub.Receive()
-	if err != nil {
-		return nil, err
-	}
-	ch := consumer.pubsub.Channel()
-	return ch, nil
-}
-
-//UnSubscribe 取消对特定频道的监听
-func (consumer *pubsubConsumer) UnSubscribe(topics ...string) error {
-	if consumer.pubsub == nil {
-		return ErrPubSubNotSubscribe
-	}
-	return consumer.pubsub.Unsubscribe(topics...)
-}
-
-//Close 关闭监听
-func (consumer *pubsubConsumer) Close() error {
-	if consumer.pubsub == nil {
-		return ErrPubSubNotSubscribe
-	}
-	return consumer.pubsub.Close()
+	p.listenPubsub.Close()
+	return nil
 }
