@@ -7,38 +7,29 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	message "github.com/Golang-Tools/message"
 	helper "github.com/Golang-Tools/redishelper"
 	"github.com/go-redis/redis/v8"
 )
 
-//Message 消息接口,消息可以被序列化为[]byte
-type Message interface {
-	ToBytes() ([]byte, error)
-}
-
-//FromBytesFunc 将[]byte序列化为Message的函数
-type FromBytesFunc func([]byte) (Message, error)
-
 // Handdler 处理消息的回调函数
 //@params msg Message 满足Message接口的对象
-type Handdler func(msg Message) error
+type Handdler func(msg message.Message) error
 
 //Queue 消息队列
 type Queue struct {
-	Key             string
 	MaxTTL          time.Duration
 	client          helper.GoRedisV8Client
 	handdlers       []Handdler
+	handdlerslock            sync.Mutex
 	listenCtxCancel context.CancelFunc
 }
 
 //NewQueue 新建一个PubSub主题
 //@params client helper.GoRedisV8Client 客户端对象
-//@params key string queue使用的键
 //@params maxttl ...time.Duration 键的最长过期时间,最多填1位,不填则不设置
-func NewQueue(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Queue {
+func NewQueue(client helper.GoRedisV8Client, maxttl ...time.Duration) *Queue {
 	q := new(Queue)
-	q.Key = key
 	q.client = client
 	q.handdlers = []Handdler{}
 	switch len(maxttl) {
@@ -74,7 +65,9 @@ func (q *Queue) RegistHanddler(fn Handdler) error {
 	if q.listenCtxCancel != nil {
 		return ErrQueueAlreadyListened
 	}
+	q.handdlerslock.Lock()
 	q.handdlers = append(q.handdlers, fn)
+	q.handdlerslock.Unlock()
 	return nil
 }
 
@@ -82,36 +75,35 @@ func (q *Queue) RegistHanddler(fn Handdler) error {
 
 //RefreshTTL 刷新key的生存时间
 //@params ctx context.Context 请求的上下文
-func (q *Queue) RefreshTTL(ctx context.Context) error {
+//@params topics []string 要刷新的主题列表
+func (q *Queue) RefreshTTL(ctx context.Context, topics ...string) error {
+	if len(topics)<=0{
+		return ErrNeedToPointOutTopics
+	}
 	if q.MaxTTL != 0 {
-		_, err := q.client.Exists(ctx, q.Key).Result()
-		if err != nil {
-			if err != redis.Nil {
-				return err
-			}
-			return ErrKeyNotExist
-		}
-		_, err = q.client.Expire(ctx, q.Key, q.MaxTTL).Result()
+		_, err := q.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			for _, key := range topics {
+				_, err = pipe.Expire(ctx, key, q.MaxTTL)
+			return nil
+		})
 		if err != nil {
 			return err
 		}
 		return nil
+		}
 	}
-	return ErrBitmapNotSetMaxTLL
+	return ErrQueueNotSetMaxTLL
 }
 
 //TTL 查看key的剩余时间
 //@params ctx context.Context 请求的上下文
-func (q *Queue) TTL(ctx context.Context) (time.Duration, error) {
-	_, err := q.client.Exists(ctx, q.Key).Result()
-	if err != nil {
-		if err != redis.Nil {
-			return 0, err
-		}
-		return 0, ErrKeyNotExist
-	}
+//@params ctx context.Context 要查看的主题
+func (q *Queue) TTL(ctx context.Context,topic string) (time.Duration, error) {
 	res, err := q.client.TTL(ctx, q.Key).Result()
 	if err != nil {
+		if err != redis.Nil {
+			return 0, ErrTopicNotExist
+		}
 		return 0, err
 	}
 	return res, nil
@@ -119,16 +111,16 @@ func (q *Queue) TTL(ctx context.Context) (time.Duration, error) {
 
 // Len 查看当前队列长度
 //@params ctx context.Context 请求的上下文
-func (q *Queue) Len(ctx context.Context) (int64, error) {
+//@params ctx context.Context 要查看的主题
+func (q *Queue) Len(ctx context.Context,topic string) (int64, error) {
 	return q.client.LLen(ctx, q.Key).Result()
 }
 
 //Put 向队列中放入数据
 //@params ctx context.Context 请求的上下文
-func (q *Queue) Put(ctx context.Context, refreshTTL bool, msg Message) error {
-	msgbytes, err := msg.ToBytes()
-	if err != nil {
-		return err
+func (q *Queue) Put(ctx context.Context, payload []byte,topics ... string) error {
+	if len(topics)<=0{
+		return ErrNeedToPointOutTopics
 	}
 	if refreshTTL {
 		_, err := q.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {

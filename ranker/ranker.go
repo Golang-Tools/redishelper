@@ -58,20 +58,16 @@ func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Ra
 //RefreshTTL 刷新key的生存时间
 func (r *Ranker) RefreshTTL(ctx context.Context) error {
 	if r.MaxTTL != 0 {
-		_, err := r.client.Exists(ctx, r.Key).Result()
+		_, err := r.client.Expire(ctx, r.Key, r.MaxTTL).Result()
 		if err != nil {
-			if err != redis.Nil {
-				return err
+			if err == redis.Nil {
+				return nil
 			}
-			return ErrKeyNotExist
-		}
-		_, err = r.client.Expire(ctx, r.Key, r.MaxTTL).Result()
-		if err != nil {
 			return err
 		}
 		return nil
 	}
-	return ErrBitmapNotSetMaxTLL
+	return ErrRankerNotSetMaxTLL
 }
 
 //TTL 查看key的剩余时间

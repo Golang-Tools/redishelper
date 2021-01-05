@@ -59,15 +59,11 @@ func New(client helper.GoRedisV8Client, key string, maxttl ...time.Duration) *Bi
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (bm *Bitmap) RefreshTTL(ctx context.Context) error {
 	if bm.MaxTTL != 0 {
-		_, err := bm.client.Exists(ctx, bm.Key).Result()
+		_, err := bm.client.Expire(ctx, bm.Key, bm.MaxTTL).Result()
 		if err != nil {
-			if err != redis.Nil {
-				return err
+			if err == redis.Nil {
+				return nil
 			}
-			return ErrKeyNotExist
-		}
-		_, err = bm.client.Expire(ctx, bm.Key, bm.MaxTTL).Result()
-		if err != nil {
 			return err
 		}
 		return nil

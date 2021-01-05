@@ -19,5 +19,5 @@ var ErrRankerror = errors.New("排名不存在")
 //ErrKeyNotExist key不存在
 var ErrKeyNotExist = errors.New("key不存在")
 
-//ErrBitmapNotSetMaxTLL bitmap没有设置最大tll
-var ErrBitmapNotSetMaxTLL = errors.New("kbitmap没有设置最大tll")
+//ErrRankerNotSetMaxTLL Ranker没有设置最大tll
+var ErrRankerNotSetMaxTLL = errors.New("Ranker没有设置最大tll")
