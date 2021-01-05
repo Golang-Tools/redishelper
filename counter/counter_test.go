@@ -14,7 +14,7 @@ import (
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func Test_bitmap_TTL(t *testing.T) {
+func Test_counter_TTL(t *testing.T) {
 	// 准备工作
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {

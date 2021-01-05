@@ -1,107 +1,53 @@
 package redishelper
 
 import (
+	"context"
+	"strconv"
 	"time"
+
+	"github.com/go-redis/redis"
 )
 
-// distributedLock 分布式锁结构
-type distributedLock struct {
-	proxy   *redisHelper
-	key     string
-	timeout int64
+// Lock 分布式锁结构
+type Lock struct {
+	Key      string
+	ClientID uint16
+	MaxTTL   time.Duration
+	client   redis.UniversalClient
 }
 
-func newLock(proxy *redisHelper, key string, timeout int64) *distributedLock {
-	lock := new(distributedLock)
-	lock.key = key
-	lock.timeout = timeout
-	lock.proxy = proxy
+func New(client redis.UniversalClient, key string, maxttl time.Duration) *Lock {
+	lock := new(Lock)
+	lock.Key = key
+	lock.MaxTTL = maxttl
+	lock.client = client
 	return lock
 }
 
-// Release 释放锁,锁不存在也不会报错
-func (lock *distributedLock) Release() error {
-	if !lock.proxy.IsOk() {
-		return ErrHelperNotInited
-	}
-	conn, err := lock.proxy.GetConn()
-	if err != nil {
-		return err
-	}
-	_, err = conn.Del(lock.key).Result()
-	if err != nil {
-		return err
-	}
-	return nil
+//ConsumerName 消费者名
+func (l *Lock) ClientName() string {
+	return strconv.FormatUint(uint64(l.ClientID), 32)
 }
 
-// SetLock 设置锁
-func (lock *distributedLock) Acquire() error {
-	if !lock.proxy.IsOk() {
-		return ErrHelperNotInited
-	}
-	conn, err := lock.proxy.GetConn()
+//Lock 设置锁
+//return ok bool 是否已可用
+func (l *Lock) Lock(ctx context.Context) (bool, error) {
+	set, err := l.client.SetNX(ctx, l.Key, l.ClientName(), l.MaxTTL).Result()
 	if err != nil {
-		return err
-	}
-	set, err := conn.SetNX(lock.key, "1", time.Duration(lock.timeout)*time.Second).Result()
-	if err != nil {
-		return err
+		return false, err
 	}
 	if set == false {
-		return ErrLockAlreadySet
-	}
-	return nil
-}
-
-//IsLocked 判断锁是否存在
-func (lock *distributedLock) IsLocked() (bool, error) {
-	if !lock.proxy.IsOk() {
-		return false, ErrHelperNotInited
-	}
-	conn, err := lock.proxy.GetConn()
-	if err != nil {
-		return false, err
-	}
-	exist, err := conn.Exists(lock.key).Result()
-	if err != nil {
-		return false, err
-	}
-	if exist == 0 {
 		return false, nil
 	}
 	return true, nil
 }
 
-//Wait 等待锁解锁
-func (lock *distributedLock) Wait(timeout int64) error {
-	ch := make(chan error)
-	go func() {
-		for {
-			locked, err := lock.IsLocked()
-			if err != nil {
-				ch <- err
-				break
-			} else {
-				if !locked {
-					ch <- Done
-					break
-				} else {
-					time.Sleep(time.Duration(100) * time.Microsecond)
-				}
-			}
-		}
-	}()
-	select {
-	case res := <-ch:
-		{
-			if res == Done {
-				return nil
-			}
-			return res
-		}
-	case <-time.After(time.Duration(timeout) * time.Second):
-		return ErrLockWaitTimeout
+//Unlock 释放锁,锁不存在也不会报错
+func (l *Lock) Unlock(ctx context.Context) error {
 
+	_, err = conn.Del(lock.key).Result()
+	if err != nil {
+		return err
 	}
+	return nil
 }

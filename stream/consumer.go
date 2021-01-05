@@ -127,7 +127,7 @@ func (s *Consumer) TTL(ctx context.Context, topic string) (time.Duration, error)
 //Get 从多个队列中取出数据,timeout为0则表示一直阻塞直到有数据
 //@params ctx context.Context 请求的上下文
 //@params timeout time.Duration 等待超时时间
-//@params topics ...string 队列列表
+//@params topicinfos ...*TopicInfo 队列列表,Start可以为`$`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *Consumer) Get(ctx context.Context, timeout time.Duration, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
 		return nil, ErrNeedToPointOutTopics
@@ -158,7 +158,7 @@ func (s *Consumer) Get(ctx context.Context, timeout time.Duration, count int64, 
 
 //GetNoWait 从一个队列中尝试取出数据
 //@params ctx context.Context 请求的上下文
-//@params topic string 队列名
+//@params topicinfos ...*TopicInfo 队列列表,Start可以为`$`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *Consumer) GetNoWait(ctx context.Context, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
 		return nil, ErrNeedToPointOutTopics

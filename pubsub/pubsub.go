@@ -79,6 +79,7 @@ func (p *PubSub) Publish(ctx context.Context, payload []byte, topics ...string) 
 }
 
 //Listen 监听一个发布订阅器
+//Listen方法只会执行与topic匹配的函数
 //@params asyncHanddler bool 是否并行执行回调
 //@params topics ...string 监听的发布订阅器
 func (p *PubSub) Listen(asyncHanddler bool, topics ...string) error {
@@ -114,6 +115,74 @@ func (p *PubSub) Listen(asyncHanddler bool, topics ...string) error {
 					err := handdler(msg)
 					if err != nil {
 						log.Error("message handdler get error", log.Dict{"err": err})
+					}
+				}
+			}
+		}
+		p.handdlerslock.Unlock()
+	}
+	return nil
+}
+
+//ListenParttens 监听发布订阅器匹配字符串
+//ListenParttens方法会先尝试执行与topic匹配的函数,然后再执行与partten匹配的函数
+//@params asyncHanddler bool 是否并行执行回调
+//@params topicParttens ...string 监听的发布订阅器匹配字符串
+func (p *PubSub) ListenParttens(asyncHanddler bool, topicParttens ...string) error {
+	if len(topicParttens) <= 0 {
+		return ErrNeedToPointOutTopics
+	}
+	if p.listenPubsub != nil {
+		return ErrPubSubAlreadyListened
+	}
+	defer func() {
+		p.listenPubsub = nil
+	}()
+	ctx := context.Background()
+	pubsub := p.client.PSubscribe(ctx, topicParttens...)
+	p.listenPubsub = pubsub
+	ch := pubsub.Channel()
+	for m := range ch {
+		msg, _ := message.NewFromRedisMessage(m)
+		p.handdlerslock.Lock()
+		handdlers, ok := p.handdlers[msg.Topic]
+		if ok {
+			if asyncHanddler {
+				for _, handdler := range handdlers {
+					go func(handdler message.Handdler) {
+						err := handdler(msg)
+						if err != nil {
+							log.Error("message handdler get error", log.Dict{"err": err})
+						}
+					}(handdler)
+				}
+			} else {
+				for _, handdler := range handdlers {
+					err := handdler(msg)
+					if err != nil {
+						log.Error("message handdler get error", log.Dict{"err": err})
+					}
+				}
+			}
+		}
+		if m.Pattern != "" {
+			handdlers, ok := p.handdlers[m.Pattern]
+			if ok {
+				if asyncHanddler {
+					for _, handdler := range handdlers {
+						go func(handdler message.Handdler) {
+							err := handdler(msg)
+							if err != nil {
+								log.Error("message handdler get error", log.Dict{"err": err})
+							}
+						}(handdler)
+					}
+				} else {
+					for _, handdler := range handdlers {
+						err := handdler(msg)
+						if err != nil {
+							log.Error("message handdler get error", log.Dict{"err": err})
+						}
 					}
 				}
 			}

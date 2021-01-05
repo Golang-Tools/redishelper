@@ -122,11 +122,12 @@ func (s *Stream) HasGroups(ctx context.Context, groupnames ...string) (bool, err
 }
 
 //CreateGroup 为指定消费者在指定的Stream上创建消费者组
+//如果stream不存在则创建之
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params groupname string 消费者组名列表
-//@params start string 开始位置
+//@params start string 开始位置,"$"表示最近,"0"表示最初.也可以填入正常的id
 func (s *Stream) CreateGroup(ctx context.Context, groupname, start string) (string, error) {
-	return s.client.XGroupCreate(ctx, s.Key, groupname, start).Result()
+	return s.client.XGroupCreateMkStream(ctx, s.Key, groupname, start).Result()
 }
 
 //DeleteGroup 为指定消费者在指定的Stream上删除消费者组

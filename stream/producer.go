@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/Golang-Tools/loggerhelper"
 	"github.com/go-redis/redis/v8"
-	"github.com/prometheus/common/log"
 )
 
 //Producer 流对象

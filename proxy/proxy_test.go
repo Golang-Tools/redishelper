@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	helper "github.com/Golang-Tools/redishelper"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,7 +33,7 @@ func Test_redisProxy_InitFromURL(t *testing.T) {
 
 func Test_redisProxy_reset(t *testing.T) {
 	proxy := New()
-	proxy.Regist(func(cli helper.GoRedisV8Client) error {
+	proxy.Regist(func(cli redis.UniversalClient) error {
 		t.Log("inited db")
 		return nil
 	})

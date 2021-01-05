@@ -3,6 +3,7 @@ package stream
 //流消费者组
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -10,13 +11,25 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+//AckModeType Ack模式
+type AckModeType uint16
+
+const (
+	//AckModeAckWhenGet 获取到后确认
+	AckModeAckWhenGet AckModeType = iota
+	//AckModeNoAck 不做确认
+	AckModeNoAck
+	//AckModeAckWhenDone 处理完后确认
+	AckModeAckWhenDone
+)
+
 //GroupConsumer 流消费者组对象
 type GroupConsumer struct {
 	MaxTTL          time.Duration
 	client          redis.UniversalClient
 	Group           string
-	ConsumerName    string //监听使用的消费者名仅对消费组形式有效
-	NoAck           bool   //是否不确认消息收到与否,仅对消费组形式有效
+	ConsumerID      uint16
+	AckMode         AckModeType
 	handdlers       map[string][]Handdler
 	handdlerslock   sync.RWMutex
 	listenCtxCancel context.CancelFunc
@@ -24,21 +37,21 @@ type GroupConsumer struct {
 
 //NewGroupConsumerOptions 创建流消费者组对象的可选参数
 type NewGroupConsumerOptions struct {
-	NoAck  bool
-	MaxTTL time.Duration
+	AckMode AckModeType
+	MaxTTL  time.Duration
 }
 
 //NewGroupConsumer 新建一个流对象的消费者
 //@params client redis.UniversalClient 客户端对象
 //@params key string 流使用的key
 //@params option ...*NewGroupConsumerOptions 流的可选项
-func NewGroupConsumer(client redis.UniversalClient, groupname, consumername string, option ...*NewGroupConsumerOptions) *GroupConsumer {
+func NewGroupConsumer(client redis.UniversalClient, groupname string, consumerID uint16, option ...*NewGroupConsumerOptions) *GroupConsumer {
 	s := new(GroupConsumer)
 	s.client = client
 	s.handdlers = map[string][]Handdler{}
 	s.handdlerslock = sync.RWMutex{}
 	s.Group = groupname
-	s.ConsumerName = consumername
+	s.ConsumerID = consumerID
 	switch len(option) {
 	case 0:
 		{
@@ -53,7 +66,7 @@ func NewGroupConsumer(client redis.UniversalClient, groupname, consumername stri
 				} else {
 					s.MaxTTL = op.MaxTTL
 				}
-				s.NoAck = op.NoAck
+				s.AckMode = op.AckMode
 				return s
 			}
 			log.Warn("option不能为nil,设置无效")
@@ -69,7 +82,7 @@ func NewGroupConsumer(client redis.UniversalClient, groupname, consumername stri
 				} else {
 					s.MaxTTL = op.MaxTTL
 				}
-				s.NoAck = op.NoAck
+				s.AckMode = op.AckMode
 				return s
 			}
 			log.Warn("option不能为nil,设置无效")
@@ -77,6 +90,11 @@ func NewGroupConsumer(client redis.UniversalClient, groupname, consumername stri
 		}
 	}
 
+}
+
+//ConsumerName 消费者名
+func (s *GroupConsumer) ConsumerName() string {
+	return strconv.FormatUint(uint64(s.ConsumerID), 32)
 }
 
 //Subscribe 将回调函数注册到queue上
@@ -151,7 +169,7 @@ func (s *GroupConsumer) TTL(ctx context.Context, topic string) (time.Duration, e
 //Get 从多个队列中取出数据,timeout为0则表示一直阻塞直到有数据
 //@params ctx context.Context 请求的上下文
 //@params timeout time.Duration 等待超时时间
-//@params topics ...string 队列列表
+//@params topicinfos ...*TopicInfo 队列列表,Start可以为`<`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *GroupConsumer) Get(ctx context.Context, timeout time.Duration, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
 		return nil, ErrNeedToPointOutTopics
@@ -162,7 +180,7 @@ func (s *GroupConsumer) Get(ctx context.Context, timeout time.Duration, count in
 		if i.Topic != "" {
 			start := i.Start
 			if i.Start == "" {
-				start = "$"
+				start = ">"
 			}
 			topics = append(topics, i.Topic)
 			starts = append(starts, start)
@@ -174,18 +192,20 @@ func (s *GroupConsumer) Get(ctx context.Context, timeout time.Duration, count in
 	}
 	args := redis.XReadGroupArgs{
 		Group:    s.Group,
-		Consumer: s.ConsumerName,
+		Consumer: s.ConsumerName(),
 		Streams:  topics,
 		Count:    count,
 		Block:    timeout,
-		NoAck:    s.NoAck,
+	}
+	if s.AckMode == AckModeAckWhenGet {
+		args.NoAck = true
 	}
 	return s.client.XReadGroup(ctx, &args).Result()
 }
 
 //GetNoWait 从一个队列中尝试取出数据
 //@params ctx context.Context 请求的上下文
-//@params topic string 队列名
+//@params topicinfos ...*TopicInfo 队列列表,Start可以为`<`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *GroupConsumer) GetNoWait(ctx context.Context, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
 		return nil, ErrNeedToPointOutTopics
@@ -196,7 +216,7 @@ func (s *GroupConsumer) GetNoWait(ctx context.Context, count int64, topicinfos .
 		if i.Topic != "" {
 			start := i.Start
 			if i.Start == "" {
-				start = "$"
+				start = ">"
 			}
 			topics = append(topics, i.Topic)
 			starts = append(starts, start)
@@ -208,12 +228,26 @@ func (s *GroupConsumer) GetNoWait(ctx context.Context, count int64, topicinfos .
 	}
 	args := redis.XReadGroupArgs{
 		Group:    s.Group,
-		Consumer: s.ConsumerName,
+		Consumer: s.ConsumerName(),
 		Streams:  topics,
 		Count:    count,
-		NoAck:    s.NoAck,
+	}
+	if s.AckMode == AckModeAckWhenGet {
+		args.NoAck = true
 	}
 	return s.client.XReadGroup(ctx, &args).Result()
+}
+
+//Ack 手工确认组已经消耗了消息
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+//@params groupname string 消费者组名列表
+//@params ids ...string 确认被消耗的id列表
+func (s *GroupConsumer) Ack(ctx context.Context, topic, id string) error {
+	_, err := s.client.XAck(ctx, topic, s.ConsumerName(), id).Result()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 //Listen 监听一个流
@@ -257,13 +291,28 @@ func (s *GroupConsumer) Listen(asyncHanddler bool, topicinfos ...*TopicInfo) err
 					handdlers, ok := s.handdlers[streamMessage.Stream]
 					if ok {
 						if asyncHanddler {
-							for _, handdler := range handdlers {
-								go func(handdler Handdler) {
-									err := handdler(&streamMessage)
-									if err != nil {
-										log.Error("message handdler get error", log.Dict{"err": err})
-									}
-								}(handdler)
+							if s.AckMode == AckModeAckWhenDone {
+								wg := sync.WaitGroup{}
+								for _, handdler := range handdlers {
+									wg.Add(1)
+									go func(handdler Handdler) {
+										defer wg.Done()
+										err := handdler(&streamMessage)
+										if err != nil {
+											log.Error("message handdler get error", log.Dict{"err": err})
+										}
+									}(handdler)
+								}
+								wg.Wait()
+							} else {
+								for _, handdler := range handdlers {
+									go func(handdler Handdler) {
+										err := handdler(&streamMessage)
+										if err != nil {
+											log.Error("message handdler get error", log.Dict{"err": err})
+										}
+									}(handdler)
+								}
 							}
 						} else {
 							for _, handdler := range handdlers {
@@ -275,6 +324,10 @@ func (s *GroupConsumer) Listen(asyncHanddler bool, topicinfos ...*TopicInfo) err
 						}
 					}
 					s.handdlerslock.Unlock()
+					if s.AckMode == AckModeAckWhenDone {
+						xm := streamMessage.Messages[0]
+						s.Ack(ctx, streamMessage.Stream, xm.ID)
+					}
 				}
 			}
 		}

@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
+	log "github.com/Golang-Tools/loggerhelper"
 	"github.com/go-redis/redis/v8"
-	"github.com/prometheus/common/log"
 )
 
 //Ranker 排序工具

@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-redis/redis"
-	"github.com/prometheus/common/log"
+	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/go-redis/redis/v8"
 )
 
 //Counter 分布式计数器
