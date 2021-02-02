@@ -1,13 +1,18 @@
-package redishelper
+package lock
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
+
+//DefaultCheckPeriod 等待的轮询间隔默认500微秒
+const DefaultCheckPeriod = 500 * time.Microsecond
+
+//MiniCheckPeriod 等待的轮询间隔最低100微秒
+const MiniCheckPeriod = 100 * time.Microsecond
 
 //ErrAlreadyLocked 该锁已经被锁定
 var ErrAlreadyLocked = errors.New("该锁已经被锁定")
@@ -18,22 +23,54 @@ var ErrAlreadyUnLocked = errors.New("该锁已经被解锁")
 //ErrNoRightToUnLocked 无权解锁该锁
 var ErrNoRightToUnLocked = errors.New("无权解锁该锁")
 
+//ErrArgCheckPeriodMoreThan1 checkperiod参数的个数超过1个
+var ErrArgCheckPeriodMoreThan1 = errors.New("checkperiod 必须只有1位或者没有设置")
+
+//ErrCheckPeriodLessThan100Microsecond checkperiod小于100微秒
+var ErrCheckPeriodLessThan100Microsecond = errors.New("checkperiod 必须不小于100微秒")
+
+//Canlock 锁对象的接口
+type Canlock interface {
+	Lock(context.Context) error
+	Unlock(context.Context) error
+	Wait(context.Context) error
+}
+
 // Lock 分布式锁结构
 type Lock struct {
-	Key      string                //锁使用的key
-	ClientID string                //客户端id
-	MaxTTL   time.Duration         //锁的最大过期时间
-	client   redis.UniversalClient //redis客户端对象
+	Key         string                //锁使用的key
+	ClientID    string                //客户端id
+	MaxTTL      time.Duration         //锁的最大过期时间
+	CheckPeriod time.Duration         //等待的轮询间隔
+	client      redis.UniversalClient //redis客户端对象
 }
 
 //New 新建一个锁对象
-func New(client redis.UniversalClient, key, clientID string, maxttl time.Duration) *Lock {
+func New(client redis.UniversalClient, key, clientID string, maxttl time.Duration, checkperiod ...time.Duration) (*Lock, error) {
 	lock := new(Lock)
 	lock.Key = key
 	lock.ClientID = clientID
 	lock.MaxTTL = maxttl
 	lock.client = client
-	return lock
+	switch len(checkperiod) {
+	case 0:
+		{
+			lock.CheckPeriod = DefaultCheckPeriod
+		}
+	case 1:
+		{
+			cp := checkperiod[0]
+			if cp < MiniCheckPeriod {
+				return nil, ErrCheckPeriodLessThan100Microsecond
+			}
+			lock.CheckPeriod = cp
+		}
+	default:
+		{
+			return nil, ErrArgCheckPeriodMoreThan1
+		}
+	}
+	return lock, nil
 }
 
 //Lock 设置锁
@@ -45,7 +82,6 @@ func (l *Lock) Lock(ctx context.Context) error {
 	if set == true {
 		return nil
 	}
-	fmt.Println("set is ", set)
 	return ErrAlreadyLocked
 }
 
@@ -82,7 +118,7 @@ func (l *Lock) Check(ctx context.Context) (bool, error) {
 }
 
 //Wait 等待锁释放
-func (l *Lock) Wait(ctx context.Context, checkperiod time.Duration) error {
+func (l *Lock) Wait(ctx context.Context) error {
 loop:
 	for {
 		r, err := l.Check(ctx)
@@ -90,7 +126,7 @@ loop:
 			return err
 		}
 		if r {
-			time.Sleep(checkperiod)
+			time.Sleep(l.CheckPeriod)
 		} else {
 			break loop
 		}

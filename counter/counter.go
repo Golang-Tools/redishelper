@@ -10,6 +10,13 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+//CanCount counter的接口
+type CanCount interface {
+	Next(context.Context) (int64, error)
+	NextM(context.Context, int64) (int64, error)
+	Reset(context.Context) error
+}
+
 //Counter 分布式计数器
 type Counter struct {
 	Key    string
