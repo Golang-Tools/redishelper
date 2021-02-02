@@ -1,4 +1,4 @@
-//Package counter 为代理添加Counter操作支持
+//Package counter Counter操作支持
 //Counter可以用于分布式累加计数
 package counter
 

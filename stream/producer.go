@@ -2,7 +2,6 @@ package stream
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
@@ -133,7 +132,7 @@ func (s *Producer) Publish(ctx context.Context, value map[string]interface{}) (s
 	}
 	id, err := s.client.XAdd(ctx, &args).Result()
 	if err != nil {
-		fmt.Println("publish error:", err.Error())
+		log.Error("publish error", log.Dict{"err": err.Error()})
 	}
 	return id, err
 }

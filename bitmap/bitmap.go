@@ -1,5 +1,6 @@
-//Package bitmap 为代理添加bitmap操作支持
+//Package bitmap bitmap操作支持
 //bitmap可以用于分布式去重
+//bitmap实现了一般set的常用接口(Add,Remove,Contained,Len,ToArray)
 package bitmap
 
 import (
@@ -282,4 +283,31 @@ func (bm *Bitmap) SettedOffsets(ctx context.Context) ([]int64, error) {
 		}
 	}
 	return res, nil
+}
+
+// 别名 对应set的方法
+
+//Add 对应set的add操作
+func (bm *Bitmap) Add(ctx context.Context, value int64) error {
+	return bm.Set(ctx, value)
+}
+
+//Remove 对应set的remove操作
+func (bm *Bitmap) Remove(ctx context.Context, value int64) error {
+	return bm.UnSet(ctx, value)
+}
+
+//Len 对应set的len操作
+func (bm *Bitmap) Len(ctx context.Context) (int64, error) {
+	return bm.CountSetted(ctx)
+}
+
+//Contained 对应set的Contained操作,也就是in运算符
+func (bm *Bitmap) Contained(ctx context.Context, value int64) (bool, error) {
+	return bm.IsSetted(ctx, value)
+}
+
+//ToArray set转换位array
+func (bm *Bitmap) ToArray(ctx context.Context) ([]int64, error) {
+	return bm.SettedOffsets(ctx)
 }

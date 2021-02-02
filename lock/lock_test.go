@@ -2,9 +2,10 @@ package lock
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
+
+	log "github.com/Golang-Tools/loggerhelper"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
@@ -110,15 +111,15 @@ func Test_lock_waitLock(t *testing.T) {
 	}
 	assert.Equal(t, false, locked)
 	go func() error {
-		fmt.Println("to wait start")
+		log.Info("to wait start")
 		err := lock.Lock(ctx)
 		if err != nil {
-			fmt.Println("to wait error", err)
+			log.Error("to wait error", log.Dict{"err": err.Error()})
 			return err
 		}
 		defer lock.Unlock(ctx)
 		time.Sleep(3 * time.Second)
-		fmt.Println("to wait end")
+		log.Info("to wait end")
 		return nil
 	}()
 	time.Sleep(1 * time.Second)
