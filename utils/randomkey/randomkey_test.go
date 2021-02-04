@@ -1,7 +1,3 @@
-/* Package randomkey
-随机生成一个key
-*/
-
 package randomkey
 
 import (

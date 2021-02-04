@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -67,7 +68,7 @@ func (r *Ranker) RefreshTTL(ctx context.Context) error {
 		}
 		return nil
 	}
-	return ErrRankerNotSetMaxTLL
+	return utils.ErrKeyNotSetMaxTLL
 }
 
 //TTL 查看key的剩余时间
@@ -77,7 +78,7 @@ func (r *Ranker) TTL(ctx context.Context) (time.Duration, error) {
 		if err != redis.Nil {
 			return 0, err
 		}
-		return 0, ErrKeyNotExist
+		return 0, utils.ErrKeyNotExist
 	}
 	res, err := r.client.TTL(ctx, r.Key).Result()
 	if err != nil {
@@ -248,7 +249,7 @@ func (r *Ranker) Range(ctx context.Context, reverse bool, scop ...int64) ([]stri
 		}
 	default:
 		{
-			return nil, ErrIndefiniteParameterLength
+			return nil, utils.ErrIndefiniteParameterLength
 		}
 	}
 
@@ -256,13 +257,13 @@ func (r *Ranker) Range(ctx context.Context, reverse bool, scop ...int64) ([]stri
 
 //First 获取排名前若干位的元素,reverse为True则为从大到小否则为从小到大
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params count int64 前几位
+//@params n int64 前几位
 //@params reverse bool 倒序排序
-func (r *Ranker) First(ctx context.Context, count int64, reverse bool) ([]string, error) {
-	if count <= 0 {
-		return nil, ErrCountMustBePositive
+func (r *Ranker) First(ctx context.Context, n int64, reverse bool) ([]string, error) {
+	if n <= 0 {
+		return nil, utils.ErrParamMustBePositive
 	}
-	return r.Range(ctx, reverse, int64(0), count-1)
+	return r.Range(ctx, reverse, int64(0), n-1)
 }
 
 //Head first的别名
@@ -275,21 +276,21 @@ func (r *Ranker) Head(ctx context.Context, count int64, reverse bool) ([]string,
 
 //Last 获取排名后若干位的元素,reverse为True则为从大到小否则为从小到大
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params count int64 后几位
+//@params n int64 后几位
 //@params reverse bool 倒序排序
-func (r *Ranker) Last(ctx context.Context, count int64, reverse bool) ([]string, error) {
-	if count <= 0 {
-		return nil, ErrCountMustBePositive
+func (r *Ranker) Last(ctx context.Context, n int64, reverse bool) ([]string, error) {
+	if n <= 0 {
+		return nil, utils.ErrParamMustBePositive
 	}
-	return r.Range(ctx, !reverse, 0, count-1)
+	return r.Range(ctx, !reverse, 0, n-1)
 }
 
 //Tail Last的别名
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params count int64 后几位
+//@params n int64 后几位
 //@params reverse bool 倒序排序
-func (r *Ranker) Tail(ctx context.Context, count int64, reverse bool) ([]string, error) {
-	return r.Last(ctx, count, reverse)
+func (r *Ranker) Tail(ctx context.Context, n int64, reverse bool) ([]string, error) {
+	return r.Last(ctx, n, reverse)
 }
 
 //GetRank 获取指定元素的排名,reverse为True则为从大到小否则为从小到大
@@ -304,7 +305,7 @@ func (r *Ranker) GetRank(ctx context.Context, element string, reverse bool) (int
 		res, err := r.client.ZRevRank(ctx, r.Key, element).Result()
 		if err != nil {
 			if err == redis.Nil {
-				return -1, ErrElementNotExist
+				return -1, utils.ErrElementNotExist
 			}
 			return -1, err
 		}
@@ -313,7 +314,7 @@ func (r *Ranker) GetRank(ctx context.Context, element string, reverse bool) (int
 	res, err := r.client.ZRank(ctx, r.Key, element).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return -1, ErrElementNotExist
+			return -1, utils.ErrElementNotExist
 		}
 		return -1, err
 	}
@@ -331,7 +332,7 @@ func (r *Ranker) GetElementByRank(ctx context.Context, rank int64, reverse bool)
 		return "", err
 	}
 	if len(res) != 1 {
-		return "", ErrRankerror
+		return "", utils.ErrRankerror
 	}
 	return res[0], nil
 }

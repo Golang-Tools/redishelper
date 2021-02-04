@@ -7,6 +7,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -94,7 +95,7 @@ func (s *Consumer) UnSubscribe(topic string) error {
 //@params topics []string 要刷新的主题列表
 func (s *Consumer) RefreshTTL(ctx context.Context, topics ...string) error {
 	if len(topics) <= 0 {
-		return ErrNeedToPointOutTopics
+		return utils.ErrStreamNeedToPointOutTopics
 	}
 	if s.MaxTTL != 0 {
 		_, err := s.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
@@ -108,7 +109,7 @@ func (s *Consumer) RefreshTTL(ctx context.Context, topics ...string) error {
 		}
 		return nil
 	}
-	return ErrConsumerNotSetMaxTLL
+	return utils.ErrKeyNotSetMaxTLL
 }
 
 //TTL 查看key的剩余时间
@@ -117,7 +118,7 @@ func (s *Consumer) TTL(ctx context.Context, topic string) (time.Duration, error)
 	res, err := s.client.TTL(ctx, topic).Result()
 	if err != nil {
 		if err != redis.Nil {
-			return 0, ErrStreamNotExist
+			return 0, utils.ErrKeyNotExist
 		}
 		return 0, err
 	}
@@ -130,7 +131,7 @@ func (s *Consumer) TTL(ctx context.Context, topic string) (time.Duration, error)
 //@params topicinfos ...*TopicInfo 队列列表,Start可以为`$`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *Consumer) Get(ctx context.Context, timeout time.Duration, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
-		return nil, ErrNeedToPointOutTopics
+		return nil, utils.ErrStreamNeedToPointOutTopics
 	}
 	topics := []string{}
 	starts := []string{}
@@ -161,7 +162,7 @@ func (s *Consumer) Get(ctx context.Context, timeout time.Duration, count int64, 
 //@params topicinfos ...*TopicInfo 队列列表,Start可以为`$`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *Consumer) GetNoWait(ctx context.Context, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
-		return nil, ErrNeedToPointOutTopics
+		return nil, utils.ErrStreamNeedToPointOutTopics
 	}
 	topics := []string{}
 	starts := []string{}
@@ -189,7 +190,7 @@ func (s *Consumer) GetNoWait(ctx context.Context, count int64, topicinfos ...*To
 //Listen 监听一个流
 func (s *Consumer) Listen(asyncHanddler bool, topicinfos ...*TopicInfo) error {
 	if s.listenCtxCancel != nil {
-		return ErrConsumerAlreadyListened
+		return utils.ErrStreamConsumerAlreadyListened
 	}
 	defer func() {
 		s.listenCtxCancel = nil
@@ -254,7 +255,7 @@ func (s *Consumer) Listen(asyncHanddler bool, topicinfos ...*TopicInfo) error {
 //StopListening 停止监听
 func (s *Consumer) StopListening() error {
 	if s.listenCtxCancel == nil {
-		return ErrConsumerNotListeningYet
+		return utils.ErrStreamConsumerNotListeningYet
 	}
 	s.listenCtxCancel()
 	return nil

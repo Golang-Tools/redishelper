@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -136,7 +137,7 @@ func (s *GroupConsumer) UnSubscribe(topic string) error {
 //@params topics []string 要刷新的主题列表
 func (s *GroupConsumer) RefreshTTL(ctx context.Context, topics ...string) error {
 	if len(topics) <= 0 {
-		return ErrNeedToPointOutTopics
+		return utils.ErrStreamNeedToPointOutTopics
 	}
 	if s.MaxTTL != 0 {
 		_, err := s.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
@@ -150,7 +151,7 @@ func (s *GroupConsumer) RefreshTTL(ctx context.Context, topics ...string) error 
 		}
 		return nil
 	}
-	return ErrConsumerNotSetMaxTLL
+	return utils.ErrKeyNotSetMaxTLL
 }
 
 //TTL 查看key的剩余时间
@@ -159,7 +160,7 @@ func (s *GroupConsumer) TTL(ctx context.Context, topic string) (time.Duration, e
 	res, err := s.client.TTL(ctx, topic).Result()
 	if err != nil {
 		if err != redis.Nil {
-			return 0, ErrStreamNotExist
+			return 0, utils.ErrKeyNotExist
 		}
 		return 0, err
 	}
@@ -172,7 +173,7 @@ func (s *GroupConsumer) TTL(ctx context.Context, topic string) (time.Duration, e
 //@params topicinfos ...*TopicInfo 队列列表,Start可以为`<`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *GroupConsumer) Get(ctx context.Context, timeout time.Duration, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
-		return nil, ErrNeedToPointOutTopics
+		return nil, utils.ErrStreamNeedToPointOutTopics
 	}
 	topics := []string{}
 	starts := []string{}
@@ -208,7 +209,7 @@ func (s *GroupConsumer) Get(ctx context.Context, timeout time.Duration, count in
 //@params topicinfos ...*TopicInfo 队列列表,Start可以为`<`(表示只要新消息)或者id或者毫秒级时间戳字符串
 func (s *GroupConsumer) GetNoWait(ctx context.Context, count int64, topicinfos ...*TopicInfo) ([]redis.XStream, error) {
 	if len(topicinfos) <= 0 {
-		return nil, ErrNeedToPointOutTopics
+		return nil, utils.ErrStreamNeedToPointOutTopics
 	}
 	topics := []string{}
 	starts := []string{}
@@ -253,7 +254,7 @@ func (s *GroupConsumer) Ack(ctx context.Context, topic, id string) error {
 //Listen 监听一个流
 func (s *GroupConsumer) Listen(asyncHanddler bool, topicinfos ...*TopicInfo) error {
 	if s.listenCtxCancel != nil {
-		return ErrConsumerAlreadyListened
+		return utils.ErrStreamConsumerAlreadyListened
 	}
 	defer func() {
 		s.listenCtxCancel = nil
@@ -337,7 +338,7 @@ func (s *GroupConsumer) Listen(asyncHanddler bool, topicinfos ...*TopicInfo) err
 //StopListening 停止监听
 func (s *GroupConsumer) StopListening() error {
 	if s.listenCtxCancel == nil {
-		return ErrConsumerNotListeningYet
+		return utils.ErrStreamConsumerNotListeningYet
 	}
 	s.listenCtxCancel()
 	return nil

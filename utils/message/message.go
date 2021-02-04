@@ -1,6 +1,7 @@
 package message
 
 import (
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -13,7 +14,7 @@ type Message struct {
 //NewFromQueue 从queue中获取消息对象
 func NewFromQueue(res []string) (*Message, error) {
 	if len(res) != 2 {
-		return nil, ErrQueueResNotTwo
+		return nil, utils.ErrQueueResNotTwo
 	}
 	m := new(Message)
 	m.Topic = res[0]
@@ -29,6 +30,6 @@ func NewFromRedisMessage(msg *redis.Message) (*Message, error) {
 	return m, nil
 }
 
-// Handdler 处理消息的回调函数
+//MsgHanddler 处理消息的回调函数
 //@params msg *Message Message对象
-type Handdler func(msg *Message) error
+type MsgHanddler func(msg *Message) error

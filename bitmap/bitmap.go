@@ -288,13 +288,13 @@ func (bm *Bitmap) SettedOffsets(ctx context.Context) ([]int64, error) {
 // 别名 对应set的方法
 
 //Add 对应set的add操作
-func (bm *Bitmap) Add(ctx context.Context, value int64) error {
-	return bm.Set(ctx, value)
+func (bm *Bitmap) Add(ctx context.Context, value ...int64) error {
+	return bm.SetM(ctx, value...)
 }
 
 //Remove 对应set的remove操作
-func (bm *Bitmap) Remove(ctx context.Context, value int64) error {
-	return bm.UnSet(ctx, value)
+func (bm *Bitmap) Remove(ctx context.Context, value ...int64) error {
+	return bm.UnSetM(ctx, value...)
 }
 
 //Len 对应set的len操作
@@ -311,3 +311,24 @@ func (bm *Bitmap) Contained(ctx context.Context, value int64) (bool, error) {
 func (bm *Bitmap) ToArray(ctx context.Context) ([]int64, error) {
 	return bm.SettedOffsets(ctx)
 }
+
+type OpOption struct {
+}
+
+//Intersection 对应set的求交集操作
+func (bm *Bitmap) Intersection(ctx context.Context, targetbmkey string, maxttl time.Duration, otherbms ...*Bitmap) (*Bitmap, error) {
+	keys := []string{}
+	for _, otherbm := range otherbms {
+		keys = append(keys, otherbm.Key)
+	}
+	_, err := bm.client.BitOpOr(ctx, targetbmkey, bm.Key, keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	return
+}
+
+// union
+
+// except

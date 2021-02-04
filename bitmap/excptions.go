@@ -11,4 +11,4 @@ var ErrIndefiniteParameterLength = errors.New("不定长参数长度错误")
 var ErrKeyNotExist = errors.New("key不存在")
 
 //ErrBitmapNotSetMaxTLL bitmap没有设置最大tll
-var ErrBitmapNotSetMaxTLL = errors.New("kbitmap没有设置最大tll")
+var ErrBitmapNotSetMaxTLL = errors.New("bitmap没有设置最大tll")

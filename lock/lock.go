@@ -5,7 +5,6 @@ package lock
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -16,21 +15,6 @@ const DefaultCheckPeriod = 500 * time.Microsecond
 
 //MiniCheckPeriod 等待的轮询间隔最低100微秒
 const MiniCheckPeriod = 100 * time.Microsecond
-
-//ErrAlreadyLocked 该锁已经被锁定
-var ErrAlreadyLocked = errors.New("该锁已经被锁定")
-
-//ErrAlreadyUnLocked 该锁已经被解锁
-var ErrAlreadyUnLocked = errors.New("该锁已经被解锁")
-
-//ErrNoRightToUnLocked 无权解锁该锁
-var ErrNoRightToUnLocked = errors.New("无权解锁该锁")
-
-//ErrArgCheckPeriodMoreThan1 checkperiod参数的个数超过1个
-var ErrArgCheckPeriodMoreThan1 = errors.New("checkperiod 必须只有1位或者没有设置")
-
-//ErrCheckPeriodLessThan100Microsecond checkperiod小于100微秒
-var ErrCheckPeriodLessThan100Microsecond = errors.New("checkperiod 必须不小于100微秒")
 
 //Canlock 锁对象的接口
 type Canlock interface {
@@ -76,6 +60,43 @@ func New(client redis.UniversalClient, key, clientID string, maxttl time.Duratio
 	return lock, nil
 }
 
+//生命周期操作
+
+//RefreshTTL 刷新key的生存时间
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+func (l *Lock) RefreshTTL(ctx context.Context) error {
+	if l.MaxTTL != 0 {
+		_, err := l.client.Expire(ctx, l.Key, l.MaxTTL).Result()
+		if err != nil {
+			if err == redis.Nil {
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
+	return ErrLockNotSetMaxTLL
+}
+
+//TTL 查看key的剩余时间
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+func (l *Lock) TTL(ctx context.Context) (time.Duration, error) {
+	_, err := l.client.Exists(ctx, l.Key).Result()
+	if err != nil {
+		if err != redis.Nil {
+			return 0, err
+		}
+		return 0, ErrKeyNotExist
+	}
+	res, err := l.client.TTL(ctx, l.Key).Result()
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
+}
+
+//写操作
+
 //Lock 设置锁
 func (l *Lock) Lock(ctx context.Context) error {
 	set, err := l.client.SetNX(ctx, l.Key, l.ClientID, l.MaxTTL).Result()
@@ -107,6 +128,8 @@ func (l *Lock) Unlock(ctx context.Context) error {
 	}
 	return nil
 }
+
+//读操作
 
 //Check 检测是否是锁定状态,true为锁定状态,false为非锁定状态
 func (l *Lock) Check(ctx context.Context) (bool, error) {

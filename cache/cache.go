@@ -19,12 +19,6 @@ import (
 //MiniUpdatePeriod 主动更新间隔最低60s
 const MiniUpdatePeriod = 60 * time.Second
 
-//ErrArgUpdatePeriodMoreThan1 UpdatePeriod参数的个数超过1个
-var ErrArgUpdatePeriodMoreThan1 = errors.New(" updatePeriod 必须只有1位或者没有设置")
-
-//ErrUpdatePeriodLessThan60Second UpdatePeriod小于100微秒
-var ErrUpdatePeriodLessThan60Second = errors.New(" updatePeriod 必须不小于60秒")
-
 //Cachefunc 缓存函数结果
 type Cachefunc func() ([]byte, error)
 
@@ -75,21 +69,42 @@ func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 	return nil
 }
 
-//Get 获取数据,如果缓存中有就从缓存中获取,如果没有则直接从注册的缓存函数中获取,然后将结果更新到缓存
-func (c *Cache) Get(ctx context.Context) ([]byte, error) {
-	ress, err := c.client.Get(ctx, c.Key).Result()
-	if err != nil {
-		if err == redis.Nil {
-			res, err := c.Update(ctx)
-			if err != nil {
-				return nil, err
+//生命周期操作
+
+//RefreshTTL 刷新key的生存时间
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+func (c *Cache) RefreshTTL(ctx context.Context) error {
+	if c.MaxTTL != 0 {
+		_, err := c.client.Expire(ctx, c.Key, c.MaxTTL).Result()
+		if err != nil {
+			if err == redis.Nil {
+				return nil
 			}
-			return res, nil
+			return err
 		}
-		return nil, err
+		return nil
 	}
-	return []byte(ress), nil
+	return ErrCacheNotSetMaxTLL
 }
+
+//TTL 查看key的剩余时间
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+func (c *Cache) TTL(ctx context.Context) (time.Duration, error) {
+	_, err := c.client.Exists(ctx, c.Key).Result()
+	if err != nil {
+		if err != redis.Nil {
+			return 0, err
+		}
+		return 0, ErrKeyNotExist
+	}
+	res, err := c.client.TTL(ctx, c.Key).Result()
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
+}
+
+// 写操作
 
 //Update 将结果更新到缓存
 func (c *Cache) Update(ctx context.Context) ([]byte, error) {
@@ -174,4 +189,22 @@ func (c *Cache) StopAutoUpdate() error {
 	c.c.Stop()
 	c.c = nil
 	return nil
+}
+
+// 读操作
+
+//Get 获取数据,如果缓存中有就从缓存中获取,如果没有则直接从注册的缓存函数中获取,然后将结果更新到缓存
+func (c *Cache) Get(ctx context.Context) ([]byte, error) {
+	ress, err := c.client.Get(ctx, c.Key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			res, err := c.Update(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return res, nil
+		}
+		return nil, err
+	}
+	return []byte(ress), nil
 }

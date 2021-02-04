@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -111,6 +112,6 @@ func Test_ranker_GetRank(t *testing.T) {
 	assert.Equal(t, int64(4), res)
 	res, err = ranker.GetRank(ctx, "e", true)
 	if err != nil {
-		assert.Equal(t, ErrElementNotExist, err)
+		assert.Equal(t, utils.ErrElementNotExist, err)
 	}
 }

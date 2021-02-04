@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -97,7 +98,7 @@ func (s *Producer) RefreshTTL(ctx context.Context) error {
 		}
 		return nil
 	}
-	return ErrStreamNotSetMaxTLL
+	return utils.ErrKeyNotSetMaxTLL
 }
 
 //TTL 查看key的剩余时间
@@ -106,7 +107,7 @@ func (s *Producer) TTL(ctx context.Context) (time.Duration, error) {
 	res, err := s.client.TTL(ctx, s.Key).Result()
 	if err != nil {
 		if err != redis.Nil {
-			return 0, ErrStreamNotExist
+			return 0, utils.ErrKeyNotExist
 		}
 		return 0, err
 	}

@@ -2,14 +2,7 @@ package namespace
 
 import (
 	"strings"
-	"time"
-
-	"github.com/sony/sonyflake"
 )
-
-var flake = sonyflake.NewSonyflake(sonyflake.Settings{
-	StartTime: time.Date(2020, 12, 30, 0, 0, 0, 0, time.UTC),
-})
 
 //NameSpcae 带命名空间的键
 type NameSpcae []string

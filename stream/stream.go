@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Golang-Tools/redishelper/utils"
 	set "github.com/deckarep/golang-set"
 	"github.com/go-redis/redis/v8"
 )
@@ -102,7 +103,7 @@ func (s *Stream) HasGroup(ctx context.Context, groupname string) (bool, error) {
 //@params groupnames ...string 消费者组名列表
 func (s *Stream) HasGroups(ctx context.Context, groupnames ...string) (bool, error) {
 	if len(groupnames) <= 0 {
-		return false, ErrNeedToPointOutGroups
+		return false, utils.ErrStreamNeedToPointOutGroups
 	}
 	groups, err := s.GroupInfos(ctx)
 	if err != nil {

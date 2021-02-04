@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/sony/sonyflake"
 )
 
@@ -15,7 +16,7 @@ var generator *sonyflake.Sonyflake
 //InitGenerator 初始化默认生成器
 func InitGenerator(clientID ...uint16) error {
 	if generator != nil {
-		return ErrDefaultGeneratorAllreadySetted
+		return utils.ErrDefaultGeneratorAllreadySetted
 	}
 	switch len(clientID) {
 	case 0:
@@ -37,7 +38,7 @@ func InitGenerator(clientID ...uint16) error {
 		}
 	default:
 		{
-			return ErrIndefiniteParameterClientLength
+			return utils.ErrIndefiniteParameterClientLength
 		}
 	}
 	return nil
@@ -46,7 +47,7 @@ func InitGenerator(clientID ...uint16) error {
 //NextKey 随机生成key
 func NextKey() (string, error) {
 	if generator == nil {
-		return "", ErrDefaultGeneratorNotSetYet
+		return "", utils.ErrDefaultGeneratorNotSetYet
 	}
 	id, err := generator.NextID()
 	if err != nil {
