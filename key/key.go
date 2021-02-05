@@ -15,8 +15,9 @@ import (
 
 //Key 描述任意一种的单个key对象
 type Key struct {
-	Key             string
-	Opt             *Option
+	Key string
+	Opt *Option
+	scheduler
 	autorefreshtask *cron.Cron //定时任务对象
 	redis.UniversalClient
 }
