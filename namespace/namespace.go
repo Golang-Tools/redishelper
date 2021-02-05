@@ -2,6 +2,8 @@ package namespace
 
 import (
 	"strings"
+
+	"github.com/Golang-Tools/redishelper/utils"
 )
 
 const DEFAULT_DELIMITER = "::"
@@ -124,7 +126,7 @@ func FromKeyStr(key string, opts ...*DelimiterOpt) (NameSpcae, string, error) {
 	default:
 		{
 
-			return nil, "", ErrParamOptsLengthMustLessThan2
+			return nil, "", utils.ErrParamOptsLengthMustLessThan2
 		}
 	}
 

@@ -18,6 +18,3 @@ var ErrrParamEndpointCannotEmpty = errors.New("参数endpoints的元素不能为
 
 //ErrKeyParserNamespaceNumberNot2 key分隔出的元素不是2个
 var ErrKeyParserNamespaceNumberNot2 = errors.New("key分隔出的元素不是2个")
-
-//ErrParamOptsLengthMustLessThan2 不定长参数opts长度必须小于2
-var ErrParamOptsLengthMustLessThan2 = errors.New("不定长参数opts长度必须小于2")

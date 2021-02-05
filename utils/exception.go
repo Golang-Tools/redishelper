@@ -4,6 +4,12 @@ import (
 	"errors"
 )
 
+//ErrParamOptsLengthMustLessThan2 不定长参数opts长度必须小于2
+var ErrParamOptsLengthMustLessThan2 = errors.New("不定长参数opts长度必须小于2")
+
+///////
+//////
+//////
 //ErrDefaultGeneratorAllreadySetted 默认的生成器已经被设置了
 var ErrDefaultGeneratorAllreadySetted = errors.New("默认的生成器已经被设置了")
 
