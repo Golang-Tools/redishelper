@@ -33,6 +33,10 @@ type Option struct {
 //@params key string bitmap使用的key
 //@params opts ...*KeyOption key的选项
 func New(client redis.UniversalClient, key string, opts ...*Option) (*Key, error) {
+	// _, ok := client.(redis.Pipeliner)
+	// if ok {
+	// 	return nil, ErrClientCannotBePipeliner
+	// }
 	k := new(Key)
 	k.UniversalClient = client
 	k.Key = key
@@ -152,7 +156,7 @@ func (k *Key) AutoRefresh() error {
 		ctx := context.Background()
 		err := k.RefreshTTL(ctx)
 		if err != nil {
-			log.Error("自动刷新key的过期时间失败", log.Dict{"err": err.Error()})
+			log.Error("自动刷新key的过期时间失败", log.Dict{"err": err.Error(), "key": k.Key})
 		}
 	})
 	if err != nil {

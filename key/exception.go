@@ -4,6 +4,9 @@ import (
 	"errors"
 )
 
+//ErrClientCannotBePipeliner client不能是pipeliner
+var ErrClientCannotBePipeliner = errors.New("client不能是pipeliner")
+
 //ErrKeyNotSetMaxTLL key没有设置最大tll
 var ErrKeyNotSetMaxTLL = errors.New("key没有设置最大tll")
 
