@@ -16,7 +16,7 @@ type Key struct {
 	Key               string
 	Opt               *Option
 	autorefreshtaskid cron.EntryID //定时任务id
-	redis.UniversalClient
+	Client            redis.UniversalClient
 }
 
 //Option 设置key行为的选项
@@ -38,7 +38,7 @@ func New(client redis.UniversalClient, key string, opts ...*Option) (*Key, error
 	// 	return nil, ErrClientCannotBePipeliner
 	// }
 	k := new(Key)
-	k.UniversalClient = client
+	k.Client = client
 	k.Key = key
 	switch len(opts) {
 	case 0:
@@ -70,7 +70,7 @@ func New(client redis.UniversalClient, key string, opts ...*Option) (*Key, error
 //Exists 查看key是否存在
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (k *Key) Exists(ctx context.Context) (bool, error) {
-	res, err := k.UniversalClient.Exists(ctx, k.Key).Result()
+	res, err := k.Client.Exists(ctx, k.Key).Result()
 	if err != nil {
 		return false, err
 	}
@@ -83,7 +83,7 @@ func (k *Key) Exists(ctx context.Context) (bool, error) {
 //Type 查看key的类型
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (k *Key) Type(ctx context.Context) (string, error) {
-	typeName, err := k.UniversalClient.Type(ctx, k.Key).Result()
+	typeName, err := k.Client.Type(ctx, k.Key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return "", ErrKeyNotExist
@@ -96,7 +96,7 @@ func (k *Key) Type(ctx context.Context) (string, error) {
 //TTL 查看key的剩余时间
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (k *Key) TTL(ctx context.Context) (time.Duration, error) {
-	res, err := k.UniversalClient.TTL(ctx, k.Key).Result()
+	res, err := k.Client.TTL(ctx, k.Key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return 0, ErrKeyNotExist
@@ -111,7 +111,7 @@ func (k *Key) TTL(ctx context.Context) (time.Duration, error) {
 //Delete 删除key
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (k *Key) Delete(ctx context.Context) (bool, error) {
-	_, err := k.UniversalClient.Del(ctx, k.Key).Result()
+	_, err := k.Client.Del(ctx, k.Key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return false, ErrKeyNotExist
@@ -132,7 +132,7 @@ func (k *Key) RefreshTTL(ctx context.Context) error {
 		return ErrKeyNotExist
 	}
 	if k.Opt.MaxTTL != 0 {
-		_, err := k.UniversalClient.Expire(ctx, k.Key, k.Opt.MaxTTL).Result()
+		_, err := k.Client.Expire(ctx, k.Key, k.Opt.MaxTTL).Result()
 		if err != nil {
 			if err == redis.Nil {
 				return nil

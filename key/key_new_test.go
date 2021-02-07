@@ -57,7 +57,7 @@ func Test_new_key(t *testing.T) {
 		assert.Error(t, err, "key new Exist get error")
 	}
 	assert.Equal(t, false, ok)
-	_, err = key.Set(ctx, key.Key, "ok", 0).Result()
+	_, err = key.Client.Set(ctx, key.Key, "ok", 0).Result()
 	if err != nil {
 		assert.Error(t, err, "key new Set key error")
 	}
@@ -145,7 +145,7 @@ func Test_new_key_with_maxttl_and_ttl_op(t *testing.T) {
 	if err != nil {
 		assert.Error(t, err, "key new get error")
 	}
-	_, err = key.Set(ctx, key.Key, "ok", 0).Result()
+	_, err = key.Client.Set(ctx, key.Key, "ok", 0).Result()
 	if err != nil {
 		assert.Error(t, err, "key new Set key error")
 	}
@@ -196,7 +196,7 @@ func Test_new_key_with_defaultautorefresh(t *testing.T) {
 	}
 	assert.Error(t, errors.New("not get error"))
 	// 设置key
-	_, err = key.Set(ctx, key.Key, "ok", 0).Result()
+	_, err = key.Client.Set(ctx, key.Key, "ok", 0).Result()
 	if err != nil {
 		assert.Error(t, err, "key new Exist get error")
 	}
