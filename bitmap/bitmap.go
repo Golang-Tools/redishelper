@@ -5,7 +5,6 @@ package bitmap
 
 import (
 	"context"
-	"time"
 
 	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/go-redis/redis/v8"
@@ -32,9 +31,9 @@ func New(k *clientkey.ClientKey) *Bitmap {
 //@params offset int64 要置1的偏移量
 func (bm *Bitmap) Add(ctx context.Context, offset int64) error {
 	if bm.Opt.MaxTTL != 0 {
-		_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		_, err := bm.Client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.SetBit(ctx, bm.Key, offset, 1)
-			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+			pipe.Expire(ctx, bm.Key, bm.Opt.MaxTTL)
 			return nil
 		})
 		if err != nil {
@@ -49,17 +48,17 @@ func (bm *Bitmap) Add(ctx context.Context, offset int64) error {
 	return nil
 }
 
-//SetM 为bitmap中多个偏移量位置置1
+//AddM 为bitmap中多个偏移量位置置1
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params offsets ...int64 要置1的偏移量
-func (bm *Bitmap) SetM(ctx context.Context, offsets ...int64) error {
-	_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+func (bm *Bitmap) AddM(ctx context.Context, offsets ...int64) error {
+	_, err := bm.Client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		for _, offset := range offsets {
 			pipe.SetBit(ctx, bm.Key, offset, 1)
 		}
-		if bm.MaxTTL != 0 {
-			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		if bm.Opt.MaxTTL != 0 {
+			pipe.Expire(ctx, bm.Key, bm.Opt.MaxTTL)
 		}
 		return nil
 	})
@@ -69,15 +68,15 @@ func (bm *Bitmap) SetM(ctx context.Context, offsets ...int64) error {
 	return nil
 }
 
-//UnSet 为bitmap中固定偏移量位置置0
+//Remove 为bitmap中固定偏移量位置置0
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params offset int64 要置0的偏移量
-func (bm *Bitmap) UnSet(ctx context.Context, offset int64) error {
-	if bm.MaxTTL != 0 {
-		_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+func (bm *Bitmap) Remove(ctx context.Context, offset int64) error {
+	if bm.Opt.MaxTTL != 0 {
+		_, err := bm.Client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.SetBit(ctx, bm.Key, offset, 0)
-			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+			pipe.Expire(ctx, bm.Key, bm.Opt.MaxTTL)
 			return nil
 		})
 		if err != nil {
@@ -85,24 +84,24 @@ func (bm *Bitmap) UnSet(ctx context.Context, offset int64) error {
 		}
 		return nil
 	}
-	_, err := bm.client.SetBit(ctx, bm.Key, offset, 0).Result()
+	_, err := bm.Client.SetBit(ctx, bm.Key, offset, 0).Result()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-//UnSetM 为bitmap中多个偏移量位置置0
+//RemoveM 为bitmap中多个偏移量位置置0
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params offsets ...int64 要置0的偏移量
-func (bm *Bitmap) UnSetM(ctx context.Context, offsets ...int64) error {
-	_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+func (bm *Bitmap) RemoveM(ctx context.Context, offsets ...int64) error {
+	_, err := bm.Client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		for _, offset := range offsets {
 			pipe.SetBit(ctx, bm.Key, offset, 0)
 		}
-		if bm.MaxTTL != 0 {
-			pipe.Expire(ctx, bm.Key, bm.MaxTTL)
+		if bm.Opt.MaxTTL != 0 {
+			pipe.Expire(ctx, bm.Key, bm.Opt.MaxTTL)
 		}
 		return nil
 	})
@@ -114,15 +113,15 @@ func (bm *Bitmap) UnSetM(ctx context.Context, offsets ...int64) error {
 
 // 读操作
 
-//IsSetted 检查bitmap某偏移量是否已经被置1
+//Contained 检查bitmap某偏移量是否已经被置1
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params offset int64 查看的偏移量
-func (bm *Bitmap) IsSetted(ctx context.Context, offset int64) (bool, error) {
-	if bm.MaxTTL != 0 {
+func (bm *Bitmap) Contained(ctx context.Context, offset int64) (bool, error) {
+	if bm.Opt.MaxTTL != 0 {
 		defer bm.RefreshTTL(ctx)
 	}
-	res, err := bm.client.GetBit(ctx, bm.Key, offset).Result()
+	res, err := bm.Client.GetBit(ctx, bm.Key, offset).Result()
 	if err != nil {
 		return false, err
 	}
@@ -132,20 +131,20 @@ func (bm *Bitmap) IsSetted(ctx context.Context, offset int64) (bool, error) {
 	return true, nil
 }
 
-//CountSetted 检查bitmap中被置1的有多少位
+//Len 检查bitmap中被置1的有多少位
 //规定报错时返回的第一位是-1
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params scop ...int64 最多2位,第一位表示开始位置,第二位表示结束位置
-func (bm *Bitmap) CountSetted(ctx context.Context, scop ...int64) (int64, error) {
-	if bm.MaxTTL != 0 {
+func (bm *Bitmap) Len(ctx context.Context, scop ...int64) (int64, error) {
+	if bm.Opt.MaxTTL != 0 {
 		defer bm.RefreshTTL(ctx)
 	}
 	lenScop := len(scop)
 	switch lenScop {
 	case 0:
 		{
-			res, err := bm.client.BitCount(ctx, bm.Key, nil).Result()
+			res, err := bm.Client.BitCount(ctx, bm.Key, nil).Result()
 			if err != nil {
 				return 0, err
 			}
@@ -156,7 +155,7 @@ func (bm *Bitmap) CountSetted(ctx context.Context, scop ...int64) (int64, error)
 			bc := redis.BitCount{
 				Start: scop[0],
 			}
-			res, err := bm.client.BitCount(ctx, bm.Key, &bc).Result()
+			res, err := bm.Client.BitCount(ctx, bm.Key, &bc).Result()
 			if err != nil {
 				return 0, err
 			}
@@ -168,7 +167,7 @@ func (bm *Bitmap) CountSetted(ctx context.Context, scop ...int64) (int64, error)
 				Start: scop[0],
 				End:   scop[1],
 			}
-			res, err := bm.client.BitCount(ctx, bm.Key, &bc).Result()
+			res, err := bm.Client.BitCount(ctx, bm.Key, &bc).Result()
 			if err != nil {
 				return 0, err
 			}
@@ -197,15 +196,15 @@ func getBitSet(redisResponse []byte) []bool {
 	return bitset
 }
 
-//SettedOffsets 检查哪些偏移量是已经被置1的
+//ToArray 检查哪些偏移量是已经被置1的
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (bm *Bitmap) SettedOffsets(ctx context.Context) ([]int64, error) {
-	if bm.MaxTTL != 0 {
+func (bm *Bitmap) ToArray(ctx context.Context) ([]int64, error) {
+	if bm.Opt.MaxTTL != 0 {
 		defer bm.RefreshTTL(ctx)
 	}
 	res := []int64{}
-	bitmapstring, err := bm.client.Get(ctx, bm.Key).Result()
+	bitmapstring, err := bm.Client.Get(ctx, bm.Key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return res, nil
@@ -221,49 +220,24 @@ func (bm *Bitmap) SettedOffsets(ctx context.Context) ([]int64, error) {
 	return res, nil
 }
 
-// 别名 对应set的方法
-
-//Add 对应set的add操作
-func (bm *Bitmap) Add(ctx context.Context, value ...int64) error {
-	return bm.SetM(ctx, value...)
-}
-
-//Remove 对应set的remove操作
-func (bm *Bitmap) Remove(ctx context.Context, value ...int64) error {
-	return bm.UnSetM(ctx, value...)
-}
-
-//Len 对应set的len操作
-func (bm *Bitmap) Len(ctx context.Context) (int64, error) {
-	return bm.CountSetted(ctx)
-}
-
-//Contained 对应set的Contained操作,也就是in运算符
-func (bm *Bitmap) Contained(ctx context.Context, value int64) (bool, error) {
-	return bm.IsSetted(ctx, value)
-}
-
 //ToArray set转换位array
 func (bm *Bitmap) ToArray(ctx context.Context) ([]int64, error) {
 	return bm.SettedOffsets(ctx)
 }
 
-type OpOption struct {
-}
-
 //Intersection 对应set的求交集操作
-func (bm *Bitmap) Intersection(ctx context.Context, targetbmkey string, maxttl time.Duration, otherbms ...*Bitmap) (*Bitmap, error) {
-	keys := []string{}
-	for _, otherbm := range otherbms {
-		keys = append(keys, otherbm.Key)
-	}
-	_, err := bm.client.BitOpOr(ctx, targetbmkey, bm.Key, keys...).Result()
-	if err != nil {
-		return nil, err
-	}
+// func (bm *Bitmap) Intersection(ctx context.Context, targetbmkey string, maxttl time.Duration, otherbms ...*Bitmap) (*Bitmap, error) {
+// 	keys := []string{}
+// 	for _, otherbm := range otherbms {
+// 		keys = append(keys, otherbm.Key)
+// 	}
+// 	_, err := bm.client.BitOpOr(ctx, targetbmkey, bm.Key, keys...).Result()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	return
-}
+// 	return
+// }
 
 // union
 
