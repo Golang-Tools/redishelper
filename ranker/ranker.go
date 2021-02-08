@@ -5,86 +5,23 @@ package ranker
 
 import (
 	"context"
-	"time"
 
-	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
 //Ranker 排序工具
 type Ranker struct {
-	Key    string
-	MaxTTL time.Duration
-	client redis.UniversalClient
+	*clientkey.ClientKey
 }
 
 //New 新建一个排序器
-//@params client redis.UniversalClient 客户端对象
-//@params key string bitmap使用的key
-//@params maxttl ...time.Duration 最大存活时间,设置了就执行刷新
-func New(client redis.UniversalClient, key string, maxttl ...time.Duration) *Ranker {
-	r := new(Ranker)
-	r.client = client
-	r.Key = key
-	switch len(maxttl) {
-	case 0:
-		{
-			return r
-		}
-	case 1:
-		{
-			if maxttl[0] != 0 {
-				r.MaxTTL = maxttl[0]
-				return r
-			}
-			log.Warn("maxttl必须大于0,maxttl设置无效")
-			return r
-		}
-	default:
-		{
-			log.Warn("ttl最多只能设置一个,使用第一个作为过期时间")
-			if maxttl[0] != 0 {
-				r.MaxTTL = maxttl[0]
-				return r
-			}
-			log.Warn("maxttl必须大于0,maxttl设置无效")
-			return r
-		}
-	}
-}
-
-//生命周期操作
-
-//RefreshTTL 刷新key的生存时间
-func (r *Ranker) RefreshTTL(ctx context.Context) error {
-	if r.MaxTTL != 0 {
-		_, err := r.client.Expire(ctx, r.Key, r.MaxTTL).Result()
-		if err != nil {
-			if err == redis.Nil {
-				return nil
-			}
-			return err
-		}
-		return nil
-	}
-	return utils.ErrKeyNotSetMaxTLL
-}
-
-//TTL 查看key的剩余时间
-func (r *Ranker) TTL(ctx context.Context) (time.Duration, error) {
-	_, err := r.client.Exists(ctx, r.Key).Result()
-	if err != nil {
-		if err != redis.Nil {
-			return 0, err
-		}
-		return 0, utils.ErrKeyNotExist
-	}
-	res, err := r.client.TTL(ctx, r.Key).Result()
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
+//@params k *key.Key redis客户端的键对象
+func New(k *clientkey.ClientKey) *Ranker {
+	bm := new(Ranker)
+	bm.ClientKey = k
+	return bm
 }
 
 // 写操作
@@ -93,10 +30,10 @@ func (r *Ranker) TTL(ctx context.Context) (time.Duration, error) {
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params elements ...*redis.Z 要添加的带权重的元素
 func (r *Ranker) Push(ctx context.Context, elements ...*redis.Z) error {
-	if r.MaxTTL != 0 {
-		_, err := r.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+	if r.Opt.MaxTTL != 0 {
+		_, err := r.Client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.ZAddNX(ctx, r.Key, elements...)
-			pipe.Expire(ctx, r.Key, r.MaxTTL)
+			pipe.Expire(ctx, r.Key, r.Opt.MaxTTL)
 			return nil
 		})
 		if err != nil {
@@ -104,7 +41,7 @@ func (r *Ranker) Push(ctx context.Context, elements ...*redis.Z) error {
 		}
 		return nil
 	}
-	_, err := r.client.ZAddNX(ctx, r.Key, elements...).Result()
+	_, err := r.Client.ZAddNX(ctx, r.Key, elements...).Result()
 	if err != nil {
 		return err
 	}
