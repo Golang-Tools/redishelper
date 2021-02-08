@@ -1,4 +1,4 @@
-package key
+package clientkey
 
 import (
 	"errors"

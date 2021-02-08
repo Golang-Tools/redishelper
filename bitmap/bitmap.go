@@ -7,95 +7,31 @@ import (
 	"context"
 	"time"
 
-	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/go-redis/redis/v8"
 )
 
 //Bitmap 位图对象
 type Bitmap struct {
-	Key    string
-	MaxTTL time.Duration
-	client redis.UniversalClient
+	*clientkey.ClientKey
 }
 
 //New 创建一个新的位图对象
-//@params client redis.UniversalClient 客户端对象
-//@params key string bitmap使用的key
-//@params maxttl ...time.Duration 最大存活时间,设置了就执行刷新
-func New(client redis.UniversalClient, key string, maxttl ...time.Duration) *Bitmap {
+//@params k *key.Key redis客户端的键对象
+func New(k **clientkey.ClientKey) *Bitmap {
 	bm := new(Bitmap)
-	bm.client = client
-	bm.Key = key
-	switch len(maxttl) {
-	case 0:
-		{
-			return bm
-		}
-	case 1:
-		{
-			if maxttl[0] != 0 {
-				bm.MaxTTL = maxttl[0]
-				return bm
-			}
-			log.Warn("maxttl必须大于0,maxttl设置无效")
-			return bm
-		}
-	default:
-		{
-			log.Warn("ttl最多只能设置一个,使用第一个作为过期时间")
-			if maxttl[0] != 0 {
-				bm.MaxTTL = maxttl[0]
-				return bm
-			}
-			log.Warn("maxttl必须大于0,maxttl设置无效")
-			return bm
-		}
-	}
-}
-
-//生命周期操作
-
-//RefreshTTL 刷新key的生存时间
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-func (bm *Bitmap) RefreshTTL(ctx context.Context) error {
-	if bm.MaxTTL != 0 {
-		_, err := bm.client.Expire(ctx, bm.Key, bm.MaxTTL).Result()
-		if err != nil {
-			if err == redis.Nil {
-				return nil
-			}
-			return err
-		}
-		return nil
-	}
-	return ErrBitmapNotSetMaxTLL
-}
-
-//TTL 查看key的剩余时间
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-func (bm *Bitmap) TTL(ctx context.Context) (time.Duration, error) {
-	_, err := bm.client.Exists(ctx, bm.Key).Result()
-	if err != nil {
-		if err != redis.Nil {
-			return 0, err
-		}
-		return 0, ErrKeyNotExist
-	}
-	res, err := bm.client.TTL(ctx, bm.Key).Result()
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
+	bm.Key = k
+	return bm
 }
 
 // 写操作
 
-//Set 为bitmap中固定偏移量位置置1
+//Add 为bitmap中固定偏移量位置置1
 //如果设置了MaxTTL则会在执行好后刷新TTL
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params offset int64 要置1的偏移量
-func (bm *Bitmap) Set(ctx context.Context, offset int64) error {
-	if bm.MaxTTL != 0 {
+func (bm *Bitmap) Add(ctx context.Context, offset int64) error {
+	if bm.Opt.MaxTTL != 0 {
 		_, err := bm.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.SetBit(ctx, bm.Key, offset, 1)
 			pipe.Expire(ctx, bm.Key, bm.MaxTTL)

@@ -1,5 +1,5 @@
 //Package key redis的key包装
-package key
+package clientkey
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-//Key 描述任意一种的单个key对象
-type Key struct {
+//ClientKey 描述任意一种的单个key对象
+type ClientKey struct {
 	Key               string
 	Opt               *Option
 	autorefreshtaskid cron.EntryID //定时任务id
@@ -32,12 +32,12 @@ type Option struct {
 //@params client redis.UniversalClient 客户端对象
 //@params key string bitmap使用的key
 //@params opts ...*KeyOption key的选项
-func New(client redis.UniversalClient, key string, opts ...*Option) (*Key, error) {
+func New(client redis.UniversalClient, key string, opts ...*Option) (*ClientKey, error) {
 	// _, ok := client.(redis.Pipeliner)
 	// if ok {
 	// 	return nil, ErrClientCannotBePipeliner
 	// }
-	k := new(Key)
+	k := new(ClientKey)
 	k.Client = client
 	k.Key = key
 	switch len(opts) {
@@ -69,7 +69,7 @@ func New(client redis.UniversalClient, key string, opts ...*Option) (*Key, error
 
 //Exists 查看key是否存在
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (k *Key) Exists(ctx context.Context) (bool, error) {
+func (k *ClientKey) Exists(ctx context.Context) (bool, error) {
 	res, err := k.Client.Exists(ctx, k.Key).Result()
 	if err != nil {
 		return false, err
@@ -82,7 +82,7 @@ func (k *Key) Exists(ctx context.Context) (bool, error) {
 
 //Type 查看key的类型
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (k *Key) Type(ctx context.Context) (string, error) {
+func (k *ClientKey) Type(ctx context.Context) (string, error) {
 	typeName, err := k.Client.Type(ctx, k.Key).Result()
 	if err != nil {
 		return "", err
@@ -95,7 +95,7 @@ func (k *Key) Type(ctx context.Context) (string, error) {
 
 //TTL 查看key的剩余时间
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (k *Key) TTL(ctx context.Context) (time.Duration, error) {
+func (k *ClientKey) TTL(ctx context.Context) (time.Duration, error) {
 	res, err := k.Client.TTL(ctx, k.Key).Result()
 	if err != nil {
 		return 0, err
@@ -110,7 +110,7 @@ func (k *Key) TTL(ctx context.Context) (time.Duration, error) {
 
 //Delete 删除key
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (k *Key) Delete(ctx context.Context) error {
+func (k *ClientKey) Delete(ctx context.Context) error {
 	r, err := k.Client.Del(ctx, k.Key).Result()
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func (k *Key) Delete(ctx context.Context) error {
 
 //RefreshTTL 刷新key的生存时间
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (k *Key) RefreshTTL(ctx context.Context) error {
+func (k *ClientKey) RefreshTTL(ctx context.Context) error {
 	if k.Opt.MaxTTL != 0 {
 		res, err := k.Client.Expire(ctx, k.Key, k.Opt.MaxTTL).Result()
 		if err != nil {
@@ -138,7 +138,7 @@ func (k *Key) RefreshTTL(ctx context.Context) error {
 }
 
 //AutoRefresh 自动刷新key的过期时间
-func (k *Key) AutoRefresh() error {
+func (k *ClientKey) AutoRefresh() error {
 	if k.autorefreshtaskid != 0 {
 		return ErrAutoRefreshTaskHasBeenSet
 	}
@@ -161,7 +161,7 @@ func (k *Key) AutoRefresh() error {
 
 //StopAutoRefresh 取消自动更新缓存
 //@params force bool 强制停下整个定时任务cron对象
-func (k *Key) StopAutoRefresh(force bool) error {
+func (k *ClientKey) StopAutoRefresh(force bool) error {
 	if force == true {
 		if k.Opt.AutoRefreshInterval == "" {
 			return ErrAutoRefreshTaskHNotSetYet
