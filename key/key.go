@@ -6,7 +6,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/utils"
+	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	"github.com/robfig/cron/v3"
 )
@@ -62,7 +62,7 @@ func New(client redis.UniversalClient, key string, opts ...*Option) (*Key, error
 		}
 	default:
 		{
-			return nil, utils.ErrParamOptsLengthMustLessThan2
+			return nil, exception.ErrParamOptsLengthMustLessThan2
 		}
 	}
 }
@@ -85,10 +85,10 @@ func (k *Key) Exists(ctx context.Context) (bool, error) {
 func (k *Key) Type(ctx context.Context) (string, error) {
 	typeName, err := k.Client.Type(ctx, k.Key).Result()
 	if err != nil {
-		if err == redis.Nil {
-			return "", ErrKeyNotExist
-		}
 		return "", err
+	}
+	if typeName == "none" {
+		return "", ErrKeyNotExist
 	}
 	return typeName, nil
 }
@@ -98,10 +98,10 @@ func (k *Key) Type(ctx context.Context) (string, error) {
 func (k *Key) TTL(ctx context.Context) (time.Duration, error) {
 	res, err := k.Client.TTL(ctx, k.Key).Result()
 	if err != nil {
-		if err == redis.Nil {
-			return 0, ErrKeyNotExist
-		}
 		return 0, err
+	}
+	if int64(res) == -2 {
+		return 0, ErrKeyNotExist
 	}
 	return res, nil
 }
@@ -110,34 +110,27 @@ func (k *Key) TTL(ctx context.Context) (time.Duration, error) {
 
 //Delete 删除key
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-func (k *Key) Delete(ctx context.Context) (bool, error) {
-	_, err := k.Client.Del(ctx, k.Key).Result()
+func (k *Key) Delete(ctx context.Context) error {
+	r, err := k.Client.Del(ctx, k.Key).Result()
 	if err != nil {
-		if err == redis.Nil {
-			return false, ErrKeyNotExist
-		}
-		return false, err
+		return err
 	}
-	return true, nil
+	if r == 0 {
+		return ErrKeyNotExist
+	}
+	return nil
 }
 
 //RefreshTTL 刷新key的生存时间
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (k *Key) RefreshTTL(ctx context.Context) error {
-	ok, err := k.Exists(ctx)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return ErrKeyNotExist
-	}
 	if k.Opt.MaxTTL != 0 {
-		_, err := k.Client.Expire(ctx, k.Key, k.Opt.MaxTTL).Result()
+		res, err := k.Client.Expire(ctx, k.Key, k.Opt.MaxTTL).Result()
 		if err != nil {
-			if err == redis.Nil {
-				return nil
-			}
 			return err
+		}
+		if res == false {
+			return ErrKeyNotExist
 		}
 		return nil
 	}
@@ -170,20 +163,20 @@ func (k *Key) AutoRefresh() error {
 //@params force bool 强制停下整个定时任务cron对象
 func (k *Key) StopAutoRefresh(force bool) error {
 	if force == true {
-		if k.Opt.AutoRefreshInterval == "" || k.autorefreshtaskid == 0 {
+		if k.Opt.AutoRefreshInterval == "" {
 			return ErrAutoRefreshTaskHNotSetYet
 		}
-		k.Opt.TaskCron.Remove(k.autorefreshtaskid)
-		k.autorefreshtaskid = 0
+		if k.autorefreshtaskid != 0 {
+			k.Opt.TaskCron.Remove(k.autorefreshtaskid)
+			k.autorefreshtaskid = 0
+		}
+		k.Opt.TaskCron.Stop()
 		return nil
 	}
-	if k.Opt.AutoRefreshInterval == "" {
+	if k.Opt.AutoRefreshInterval == "" || k.autorefreshtaskid == 0 {
 		return ErrAutoRefreshTaskHNotSetYet
 	}
-	if k.autorefreshtaskid != 0 {
-		k.Opt.TaskCron.Remove(k.autorefreshtaskid)
-		k.autorefreshtaskid = 0
-	}
-	k.Opt.TaskCron.Stop()
+	k.Opt.TaskCron.Remove(k.autorefreshtaskid)
+	k.autorefreshtaskid = 0
 	return nil
 }

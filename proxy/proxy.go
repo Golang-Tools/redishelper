@@ -8,21 +8,21 @@ import (
 //Callback redis操作的回调函数
 type Callback func(cli redis.UniversalClient) error
 
-//redisHelper redis客户端的代理
-type redisHelper struct {
+//redisProxy redis客户端的代理
+type redisProxy struct {
 	redis.UniversalClient
 	parallelcallback bool
 	callBacks        []Callback
 }
 
 // New 创建一个新的数据库客户端代理
-func New() *redisHelper {
-	proxy := new(redisHelper)
+func New() *redisProxy {
+	proxy := new(redisProxy)
 	return proxy
 }
 
 // IsOk 检查代理是否已经可用
-func (proxy *redisHelper) IsOk() bool {
+func (proxy *redisProxy) IsOk() bool {
 	if proxy.UniversalClient == nil {
 		return false
 	}
@@ -31,7 +31,7 @@ func (proxy *redisHelper) IsOk() bool {
 
 //SetConnect 设置连接的客户端
 //@params cli UniversalClient 满足redis.UniversalClient接口的对象的指针
-func (proxy *redisHelper) SetConnect(cli redis.UniversalClient, hooks ...redis.Hook) error {
+func (proxy *redisProxy) SetConnect(cli redis.UniversalClient, hooks ...redis.Hook) error {
 	if proxy.IsOk() {
 		return ErrProxyAllreadySettedUniversalClient
 	}
@@ -41,14 +41,14 @@ func (proxy *redisHelper) SetConnect(cli redis.UniversalClient, hooks ...redis.H
 	proxy.UniversalClient = cli
 	if proxy.parallelcallback {
 		for _, cb := range proxy.callBacks {
-			go func() {
+			go func(cb Callback) {
 				err := cb(proxy.UniversalClient)
 				if err != nil {
 					log.Error("regist callback get error", log.Dict{"err": err})
 				} else {
 					log.Debug("regist callback done")
 				}
-			}()
+			}(cb)
 		}
 	} else {
 		for _, cb := range proxy.callBacks {
@@ -64,20 +64,20 @@ func (proxy *redisHelper) SetConnect(cli redis.UniversalClient, hooks ...redis.H
 }
 
 //InitFromOptions 从配置条件初始化代理对象
-func (proxy *redisHelper) InitFromOptions(options *redis.Options, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromOptions(options *redis.Options, hooks ...redis.Hook) error {
 	cli := redis.NewClient(options)
 	return proxy.SetConnect(cli, hooks...)
 }
 
 //InitFromOptionsParallelCallback 从配置条件初始化代理对象,并行执行回调函数
-func (proxy *redisHelper) InitFromOptionsParallelCallback(options *redis.Options, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromOptionsParallelCallback(options *redis.Options, hooks ...redis.Hook) error {
 	cli := redis.NewClient(options)
 	proxy.parallelcallback = true
 	return proxy.SetConnect(cli, hooks...)
 }
 
 //InitFromURL 从URL条件初始化代理对象
-func (proxy *redisHelper) InitFromURL(url string, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromURL(url string, hooks ...redis.Hook) error {
 	options, err := redis.ParseURL(url)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func (proxy *redisHelper) InitFromURL(url string, hooks ...redis.Hook) error {
 }
 
 //InitFromURLParallelCallback 从URL条件初始化代理对象
-func (proxy *redisHelper) InitFromURLParallelCallback(url string, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromURLParallelCallback(url string, hooks ...redis.Hook) error {
 	options, err := redis.ParseURL(url)
 	if err != nil {
 		return err
@@ -95,26 +95,26 @@ func (proxy *redisHelper) InitFromURLParallelCallback(url string, hooks ...redis
 }
 
 //InitFromClusterOptions 从集群设置条件初始化代理对象
-func (proxy *redisHelper) InitFromClusterOptions(options *redis.ClusterOptions, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromClusterOptions(options *redis.ClusterOptions, hooks ...redis.Hook) error {
 	cli := redis.NewClusterClient(options)
 	return proxy.SetConnect(cli, hooks...)
 }
 
 //InitFromClusterOptions 从集群设置条件初始化代理对象
-func (proxy *redisHelper) InitFromClusterOptionsParallelCallback(options *redis.ClusterOptions, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromClusterOptionsParallelCallback(options *redis.ClusterOptions, hooks ...redis.Hook) error {
 	cli := redis.NewClusterClient(options)
 	proxy.parallelcallback = true
 	return proxy.SetConnect(cli, hooks...)
 }
 
 //InitFromFailoverOptions 从集群设置条件初始化代理对象
-func (proxy *redisHelper) InitFromFailoverOptions(options *redis.FailoverOptions, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromFailoverOptions(options *redis.FailoverOptions, hooks ...redis.Hook) error {
 	cli := redis.NewFailoverClusterClient(options)
 	return proxy.SetConnect(cli, hooks...)
 }
 
 //InitFromFailoverOptions从集群设置条件初始化代理对象
-func (proxy *redisHelper) InitFromFailoverOptionsParallelCallback(options *redis.FailoverOptions, hooks ...redis.Hook) error {
+func (proxy *redisProxy) InitFromFailoverOptionsParallelCallback(options *redis.FailoverOptions, hooks ...redis.Hook) error {
 	cli := redis.NewFailoverClusterClient(options)
 	proxy.parallelcallback = true
 	return proxy.SetConnect(cli, hooks...)
@@ -122,7 +122,7 @@ func (proxy *redisHelper) InitFromFailoverOptionsParallelCallback(options *redis
 
 // Regist 注册回调函数,在init执行后执行回调函数
 //如果对象已经设置了被代理客户端则无法再注册回调函数
-func (proxy *redisHelper) Regist(cb Callback) error {
+func (proxy *redisProxy) Regist(cb Callback) error {
 	if proxy.IsOk() {
 		return ErrProxyAllreadySettedUniversalClient
 	}

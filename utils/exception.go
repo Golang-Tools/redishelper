@@ -10,20 +10,12 @@ var ErrParamOptsLengthMustLessThan2 = errors.New("不定长参数opts长度必�
 ///////
 //////
 //////
-//ErrDefaultGeneratorAllreadySetted 默认的生成器已经被设置了
-var ErrDefaultGeneratorAllreadySetted = errors.New("默认的生成器已经被设置了")
-
-//ErrIndefiniteParameterClientLength 不定长参数clientID长度错误
-var ErrIndefiniteParameterClientLength = errors.New("不定长参数clientID长度错误")
 
 //ErrKeyNotSetMaxTLL key没有设置最大tll
 var ErrKeyNotSetMaxTLL = errors.New("key没有设置最大tll")
 
 //ErrKeyNotExist key不存在
 var ErrKeyNotExist = errors.New("key不存在")
-
-//ErrDefaultGeneratorNotSetYet 默认的生成器未被设置
-var ErrDefaultGeneratorNotSetYet = errors.New("默认的生成器未被设置")
 
 //ErrQueueResNotTwo 从队列中得到的消息结果不为2位
 var ErrQueueResNotTwo = errors.New("从队列中得到的消息结果不为2位")

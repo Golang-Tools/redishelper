@@ -1,7 +1,6 @@
 package namespace
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/Golang-Tools/redishelper/utils"
@@ -12,7 +11,7 @@ func Test_namespace_to_str(t *testing.T) {
 	namespace := NameSpcae{"a", "b", "c"}
 	ns, err := namespace.ToString()
 	if err != nil {
-		assert.Error(t, err, "ToString get error")
+		assert.FailNow(t, err.Error(), "ToString get error")
 	}
 	assert.Equal(t, "a::b::c", ns)
 }
@@ -21,7 +20,7 @@ func Test_namespace_to_str_with_delimiter(t *testing.T) {
 	namespace := NameSpcae{"a", "b", "c"}
 	ns, err := namespace.ToString("??")
 	if err != nil {
-		assert.Error(t, err, "ToString get error")
+		assert.FailNow(t, err.Error(), "ToString get error")
 	}
 	assert.Equal(t, "a??b??c", ns)
 }
@@ -31,8 +30,10 @@ func Test_namespace_to_str_with_empty_delimiter(t *testing.T) {
 	_, err := namespace.ToString("")
 	if err != nil {
 		assert.Equal(t, ErrrParamDelimiterCannotEmpty, err)
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
+
 }
 
 func Test_namespace_to_str_with_multi_delimiter(t *testing.T) {
@@ -40,15 +41,16 @@ func Test_namespace_to_str_with_multi_delimiter(t *testing.T) {
 	_, err := namespace.ToString(":", ":")
 	if err != nil {
 		assert.Equal(t, ErrParamDelimiterLengthMustLessThan2, err)
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 }
 
 func Test_namespace_genkey(t *testing.T) {
 	namespace := NameSpcae{"a", "b", "c"}
 	k, err := namespace.Key("q", "w")
 	if err != nil {
-		assert.Error(t, err, "Gen Key get error")
+		assert.FailNow(t, err.Error(), "Gen Key get error")
 	}
 	assert.Equal(t, "a::b::c::q-w", k)
 }
@@ -57,7 +59,7 @@ func Test_namespace_genkey_without_endpoint(t *testing.T) {
 	namespace := NameSpcae{"a", "b", "c"}
 	k, err := namespace.Key()
 	if err != nil {
-		assert.Error(t, err, "Gen Key get error")
+		assert.FailNow(t, err.Error(), "Gen Key get error")
 	}
 	assert.Equal(t, "a::b::c", k)
 
@@ -67,8 +69,9 @@ func Test_namespace_genkey_with_empty_endpoint(t *testing.T) {
 	_, err := namespace.Key("")
 	if err != nil {
 		assert.Equal(t, ErrrParamEndpointCannotEmpty, err)
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 }
 
 func Test_namespace_genkey_with_delimiter(t *testing.T) {
@@ -79,7 +82,7 @@ func Test_namespace_genkey_with_delimiter(t *testing.T) {
 		EndpointsDelimiter:          "_",
 	}, "q", "w")
 	if err != nil {
-		assert.Error(t, err, "Gen Key get error")
+		assert.FailNow(t, err.Error(), "Gen Key get error")
 	}
 	assert.Equal(t, "a:b:c::q_w", k)
 }
@@ -87,12 +90,12 @@ func Test_namespace_genkey_with_default_delimiter(t *testing.T) {
 	namespace := NameSpcae{"a", "b", "c"}
 	k, err := namespace.KeyWithDelimiter(&DelimiterOpt{}, "q", "w")
 	if err != nil {
-		assert.Error(t, err, "Gen Key get error")
+		assert.FailNow(t, err.Error(), "Gen Key get error")
 	}
 	assert.Equal(t, "a::b::c::q-w", k)
 	k, err = namespace.KeyWithDelimiter(nil, "q", "w")
 	if err != nil {
-		assert.Error(t, err, "Gen Key get error")
+		assert.FailNow(t, err.Error(), "Gen Key get error")
 	}
 	assert.Equal(t, "a::b::c::q-w", k)
 }
@@ -106,8 +109,9 @@ func Test_namespace_genkey_with_delimiter_with_empty_endpoint(t *testing.T) {
 	}, "", "w")
 	if err != nil {
 		assert.Equal(t, ErrrParamEndpointCannotEmpty, err)
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 }
 func Test_namespace_genkey_with_delimiter_without_endpoint(t *testing.T) {
 	namespace := NameSpcae{"a", "b", "c"}
@@ -117,7 +121,7 @@ func Test_namespace_genkey_with_delimiter_without_endpoint(t *testing.T) {
 		EndpointsDelimiter:          "_",
 	})
 	if err != nil {
-		assert.Error(t, err, "Gen Key get error")
+		assert.FailNow(t, err.Error(), "Gen Key get error")
 	}
 	assert.Equal(t, "a:b:c", k)
 }
@@ -126,7 +130,7 @@ func Test_namespace_fromkey(t *testing.T) {
 	keyStr := "a::b::c"
 	namespace, endpointStr, err := FromKeyStr(keyStr)
 	if err != nil {
-		assert.Error(t, err, "Gen namespace from key string get error")
+		assert.FailNow(t, err.Error(), "Gen namespace from key string get error")
 	}
 	assert.Equal(t, NameSpcae{"a", "b"}, namespace)
 	assert.Equal(t, "c", endpointStr)
@@ -139,7 +143,7 @@ func Test_namespace_fromkey_with_delimiter_option(t *testing.T) {
 		NamespaceEndpointsDelimiter: "::",
 	})
 	if err != nil {
-		assert.Error(t, err, "Gen namespace from key string get error")
+		assert.FailNow(t, err.Error(), "Gen namespace from key string get error")
 	}
 	assert.Equal(t, NameSpcae{"a", "b"}, namespace)
 	assert.Equal(t, "c", endpointStr)
@@ -149,7 +153,7 @@ func Test_namespace_fromkey_with_empty_delimiter_option(t *testing.T) {
 	keyStr := "a::b::c"
 	namespace, endpointStr, err := FromKeyStr(keyStr, nil)
 	if err != nil {
-		assert.Error(t, err, "Gen namespace from key string get error")
+		assert.FailNow(t, err.Error(), "Gen namespace from key string get error")
 	}
 	assert.Equal(t, NameSpcae{"a", "b"}, namespace)
 	assert.Equal(t, "c", endpointStr)
@@ -161,8 +165,9 @@ func Test_namespace_fromkey_with_multi_delimiter_option(t *testing.T) {
 	if err != nil {
 		assert.Equal(t, utils.ErrParamOptsLengthMustLessThan2, err)
 
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 }
 
 func Test_namespace_fromkey_with_no_namespace(t *testing.T) {
@@ -171,8 +176,9 @@ func Test_namespace_fromkey_with_no_namespace(t *testing.T) {
 	if err != nil {
 		assert.Equal(t, ErrKeyNotHaveNamespace, err)
 
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 	_, _, err = FromKeyStr(keyStr, &DelimiterOpt{
 		NamespaceDelimiter:          ":",
 		NamespaceEndpointsDelimiter: "::",
@@ -180,8 +186,9 @@ func Test_namespace_fromkey_with_no_namespace(t *testing.T) {
 	if err != nil {
 		assert.Equal(t, ErrKeyNotHaveNamespace, err)
 
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 }
 
 func Test_namespace_fromkey_with_multi_namespace(t *testing.T) {
@@ -192,17 +199,7 @@ func Test_namespace_fromkey_with_multi_namespace(t *testing.T) {
 	})
 	if err != nil {
 		assert.Equal(t, ErrKeyParserNamespaceNumberNot2, err)
-
+	} else {
+		assert.FailNow(t, "can not get error")
 	}
-	assert.Error(t, errors.New("can not get error"))
 }
-
-// func Test_namespace_fromkey_define_delimiter(t *testing.T) {
-// 	keyStr := "a::b:c"
-// 	namespace, endpointStr, err := FromKeyStr(keyStr)
-// 	if err != nil {
-// 		assert.Error(t, err, "Gen namespace from key string get error")
-// 	}
-// 	assert.Equal(t, NameSpcae{"a", "b"}, namespace)
-// 	assert.Equal(t, "c", endpointStr)
-// }
