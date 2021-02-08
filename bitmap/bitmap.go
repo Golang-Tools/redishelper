@@ -18,9 +18,9 @@ type Bitmap struct {
 
 //New 创建一个新的位图对象
 //@params k *key.Key redis客户端的键对象
-func New(k **clientkey.ClientKey) *Bitmap {
+func New(k *clientkey.ClientKey) *Bitmap {
 	bm := new(Bitmap)
-	bm.Key = k
+	bm.ClientKey = k
 	return bm
 }
 
