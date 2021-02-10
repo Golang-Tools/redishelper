@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	uuid "github.com/satori/go.uuid"
 )
@@ -200,7 +201,7 @@ func (bm *Bitmap) ScopCount(ctx context.Context, scop ...int64) (int64, error) {
 		}
 	default:
 		{
-			return -1, ErrParamScopLengthMoreThan2
+			return -1, exception.ErrParamScopLengthMoreThan2
 		}
 	}
 }
@@ -211,6 +212,16 @@ func (bm *Bitmap) ScopCount(ctx context.Context, scop ...int64) (int64, error) {
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (bm *Bitmap) Len(ctx context.Context) (int64, error) {
 	return bm.ScopCount(ctx)
+}
+
+//Reset 重置当前bitmap
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+func (bm *Bitmap) Reset(ctx context.Context) error {
+	err := bm.Delete(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 //ToArray 检查哪些偏移量是已经被置1的

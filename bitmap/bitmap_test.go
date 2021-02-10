@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/exception"
 	redis "github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -87,7 +88,7 @@ func Test_bitmap_without_ttl(t *testing.T) {
 
 	_, err = bm.ScopCount(ctx, 1, 1, 1)
 	if err != nil {
-		assert.Equal(t, ErrParamScopLengthMoreThan2, err)
+		assert.Equal(t, exception.ErrParamScopLengthMoreThan2, err)
 	} else {
 		assert.FailNow(t, "no get error")
 	}
@@ -146,6 +147,12 @@ func Test_bitmap_without_ttl(t *testing.T) {
 		assert.FailNow(t, err.Error(), "Bitmap.SettedOffsets error")
 	}
 	assert.Equal(t, []int64{13}, offsetlist)
+	err = bm.Reset(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "Bitmap.SettedOffsets error")
+	}
+	err = bm.Reset(ctx)
+	assert.NotNil(t, err)
 }
 
 func Test_bitmap_op(t *testing.T) {

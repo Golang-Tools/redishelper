@@ -98,11 +98,20 @@ func Test_counter_counter(t *testing.T) {
 		assert.FailNow(t, err.Error(), "counter next error")
 	}
 	assert.Equal(t, int64(1), res)
+	//测试 nextM
 	res, err = c.NextM(ctx, 4)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "counter.CountM error")
 	}
 	assert.Equal(t, int64(5), res)
+	//测试 len
+	res, err = c.Len(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "counter.CountM error")
+	}
+	assert.Equal(t, int64(5), res)
+
+	//测试reset
 	err = c.Reset(ctx)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "counter.reset error")
