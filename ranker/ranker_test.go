@@ -34,13 +34,10 @@ func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*client
 }
 
 func Test_ranker_FirstLast(t *testing.T) {
+	// 准备工作
 	key, ctx := NewBackground(t, "test_ranker", nil)
 	defer key.Client.Close()
-	//开始测试
-	// 准备工作
-
 	ranker := New(key)
-
 	//开始测试
 	ranker.AddOrUpdateM(ctx, &redis.Z{
 		Member: "a",
