@@ -2,10 +2,12 @@ package lock
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
+	"github.com/Golang-Tools/redishelper/clientkey"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
@@ -14,25 +16,36 @@ import (
 //TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func Test_new_Lock_err(t *testing.T) {
-	// 准备工作
+func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
-		assert.Error(t, err, "init from url error")
+		assert.FailNow(t, err.Error(), "init from url error")
 	}
 	cli := redis.NewClient(options)
-	defer cli.Close()
-
 	ctx := context.Background()
+	cli.FlushDB(ctx).Result()
 	_, err = cli.FlushDB(ctx).Result()
 	if err != nil {
-		assert.Error(t, err, "FlushDB error")
+		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	_, err = New(cli, "testlock", "client01", 10*time.Second, 10*time.Second)
+	key, err := clientkey.New(cli, keyname, opt)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "create key error")
+	}
+	fmt.Println("prepare task done")
+	return key, ctx
+}
+
+func Test_new_Lock_err(t *testing.T) {
+	// 准备工作
+	key, _ := NewBackground(t, "test_lock", nil)
+	defer key.Client.Close()
+	//开始测试
+	_, err := New(key, "client01", 10*time.Second, 10*time.Second)
 	if err != nil {
 		assert.Equal(t, err, ErrArgCheckPeriodMoreThan1)
 	}
-	_, err = New(cli, "testlock", "client02", 10*time.Microsecond)
+	_, err = New(key, "client02", 10*time.Microsecond)
 	if err != nil {
 		assert.Equal(t, err, ErrCheckPeriodLessThan100Microsecond)
 	}
@@ -40,74 +53,65 @@ func Test_new_Lock_err(t *testing.T) {
 
 func Test_lock_Lock(t *testing.T) {
 	// 准备工作
-	options, err := redis.ParseURL(TEST_REDIS_URL)
-	if err != nil {
-		assert.Error(t, err, "init from url error")
-	}
-	cli := redis.NewClient(options)
-	defer cli.Close()
+	key, ctx := NewBackground(t, "test_lock", nil)
+	defer key.Client.Close()
+	//开始测试
 
-	ctx := context.Background()
-	_, err = cli.FlushDB(ctx).Result()
+	lock, err := New(key, "client01", 10*time.Second)
 	if err != nil {
-		assert.Error(t, err, "FlushDB error")
+		assert.FailNow(t, err.Error(), "new lock error")
 	}
-	lock, err := New(cli, "testlock", "client01", 10*time.Second)
+	lock2, err := New(key, "client02", 10*time.Second)
 	if err != nil {
-		assert.Error(t, err, "new lock error")
+		assert.FailNow(t, err.Error(), "new lock2 error")
 	}
-	lock2, err := New(cli, "testlock", "client02", 10*time.Second)
-	if err != nil {
-		assert.Error(t, err, "new lock2 error")
-	}
+
 	err = lock.Lock(ctx)
 	if err != nil {
-		assert.Error(t, err, "lock error")
+		assert.FailNow(t, err.Error(), "lock error")
 	}
 	err = lock.Lock(ctx)
 	if err != nil {
 		assert.Equal(t, err, ErrAlreadyLocked)
+	} else {
+		assert.FailNow(t, "not get error")
 	}
 	err = lock2.Unlock(ctx)
 	if err != nil {
 		assert.Equal(t, err, ErrNoRightToUnLocked)
+	} else {
+		assert.FailNow(t, "not get error")
 	}
 	err = lock.Unlock(ctx)
 	if err != nil {
-		assert.Error(t, err, "该锁已经被解锁")
+		assert.FailNow(t, err.Error(), "该锁已经被解锁")
 	}
 	err = lock.Unlock(ctx)
 	if err != nil {
 		assert.Equal(t, err, ErrAlreadyUnLocked)
+	} else {
+		assert.FailNow(t, "not get error")
 	}
 }
 
 func Test_lock_waitLock(t *testing.T) {
 	// 准备工作
-	options, err := redis.ParseURL(TEST_REDIS_URL)
-	if err != nil {
-		assert.Error(t, err, "init from url error")
-	}
-	cli := redis.NewClient(options)
-	defer cli.Close()
+	key, ctx := NewBackground(t, "test_lock", nil)
+	defer key.Client.Close()
+	//开始测试
 
-	ctx := context.Background()
-	_, err = cli.FlushDB(ctx).Result()
+	lock, err := New(key, "client01", 10*time.Second)
 	if err != nil {
-		assert.Error(t, err, "FlushDB error")
+		assert.FailNow(t, err.Error(), "new lock error")
 	}
-	lock, err := New(cli, "testlock", "client01", 10*time.Second)
+	lock2, err := New(key, "client02", 10*time.Second)
 	if err != nil {
-		assert.Error(t, err, "new lock error")
-	}
-	lock2, err := New(cli, "testlock", "client02", 10*time.Second)
-	if err != nil {
-		assert.Error(t, err, "new lock2 error")
+		assert.FailNow(t, err.Error(), "new lock2 error")
 	}
 
 	locked, err := lock2.Check(ctx)
 	if err != nil {
-		assert.Error(t, err, "is locked error")
+		assert.FailNow(t, err.Error(), "is locked error")
 	}
 	assert.Equal(t, false, locked)
 	go func() error {
@@ -126,7 +130,7 @@ func Test_lock_waitLock(t *testing.T) {
 	t1 := time.Now().Unix()
 	err = lock2.Wait(ctx)
 	if err != nil {
-		assert.Error(t, err, "lock2 wait error")
+		assert.FailNow(t, err.Error(), "lock2 wait error")
 	}
 	t2 := time.Now().Unix()
 	assert.LessOrEqual(t, int64(2), t2-t1)

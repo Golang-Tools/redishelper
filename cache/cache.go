@@ -11,6 +11,8 @@ import (
 
 	log "github.com/Golang-Tools/loggerhelper"
 
+	h "github.com/Golang-Tools/redishelper"
+	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/Golang-Tools/redishelper/lock"
 	"github.com/go-redis/redis/v8"
 	"github.com/robfig/cron/v3"
@@ -24,23 +26,19 @@ type Cachefunc func() ([]byte, error)
 
 //Cache 缓存
 type Cache struct {
-	Key          string                //缓存使用的key
-	MaxTTL       time.Duration         //缓存的最大过期时间
-	UpdatePeriod string                //间隔多久主动更新,为空字符串则不主动更新,使用crontab格式
-	lock         lock.Canlock          //使用的锁
-	client       redis.UniversalClient //redis客户端对象
-	latestHash   string                //上次跟新后保存数据的hash,用于避免重复更新
-	updateFunc   Cachefunc             //更新缓存的函数
-	c            *cron.Cron            //定时任务对象
+	UpdatePeriod string     //间隔多久主动更新,为空字符串则不主动更新,使用crontab格式
+	lock         h.Canlock  //使用的锁
+	latestHash   string     //上次跟新后保存数据的hash,用于避免重复更新
+	updateFunc   Cachefunc  //更新缓存的函数
+	c            *cron.Cron //定时任务对象
+	*clientkey.ClientKey
 }
 
 //New 创建一个缓存实例
-func New(key string, maxTTL time.Duration, lock lock.Canlock, client redis.UniversalClient, updatePeriod ...string) (*Cache, error) {
+func New(k *clientkey.ClientKey, lock h.Canlock, updatePeriod ...string) (*Cache, error) {
 	cache := new(Cache)
-	cache.Key = key
-	cache.MaxTTL = maxTTL
+	cache.ClientKey = k
 	cache.lock = lock
-	cache.client = client
 	switch len(updatePeriod) {
 	case 0:
 		{
@@ -69,41 +67,6 @@ func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 	return nil
 }
 
-//生命周期操作
-
-//RefreshTTL 刷新key的生存时间
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-func (c *Cache) RefreshTTL(ctx context.Context) error {
-	if c.MaxTTL != 0 {
-		_, err := c.client.Expire(ctx, c.Key, c.MaxTTL).Result()
-		if err != nil {
-			if err == redis.Nil {
-				return nil
-			}
-			return err
-		}
-		return nil
-	}
-	return ErrCacheNotSetMaxTLL
-}
-
-//TTL 查看key的剩余时间
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-func (c *Cache) TTL(ctx context.Context) (time.Duration, error) {
-	_, err := c.client.Exists(ctx, c.Key).Result()
-	if err != nil {
-		if err != redis.Nil {
-			return 0, err
-		}
-		return 0, ErrKeyNotExist
-	}
-	res, err := c.client.TTL(ctx, c.Key).Result()
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
-}
-
 // 写操作
 
 //Update 将结果更新到缓存
@@ -129,7 +92,7 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 		h.Write(res)
 		resMd5 := hex.EncodeToString(h.Sum(nil))
 		if c.latestHash == "" {
-			_, err = c.client.Set(ctx, c.Key, res, c.MaxTTL).Result()
+			_, err = c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
 			if err != nil {
 				log.Error("设置缓存报错", log.Dict{"err": err.Error()})
 				return
@@ -139,7 +102,7 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 			return
 		}
 		if c.latestHash != resMd5 {
-			_, err = c.client.Set(ctx, c.Key, res, c.MaxTTL).Result()
+			_, err = c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
 			if err != nil {
 				log.Error("设置缓存报错", log.Dict{"err": err.Error()})
 				return
@@ -149,7 +112,7 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 			return
 		}
 		log.Warn("结果未更新,刷新过期时间")
-		_, err = c.client.Expire(ctx, c.Key, c.MaxTTL).Result()
+		_, err = c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
 		if err != nil {
 			log.Error("设置过期时间报错", log.Dict{"err": err.Error()})
 			return
@@ -195,7 +158,7 @@ func (c *Cache) StopAutoUpdate() error {
 
 //Get 获取数据,如果缓存中有就从缓存中获取,如果没有则直接从注册的缓存函数中获取,然后将结果更新到缓存
 func (c *Cache) Get(ctx context.Context) ([]byte, error) {
-	ress, err := c.client.Get(ctx, c.Key).Result()
+	ress, err := c.Client.Get(ctx, c.Key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			res, err := c.Update(ctx)

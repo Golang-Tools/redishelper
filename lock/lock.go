@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -16,29 +17,18 @@ const DefaultCheckPeriod = 500 * time.Microsecond
 //MiniCheckPeriod 等待的轮询间隔最低100微秒
 const MiniCheckPeriod = 100 * time.Microsecond
 
-//Canlock 锁对象的接口
-type Canlock interface {
-	Lock(context.Context) error
-	Unlock(context.Context) error
-	Wait(context.Context) error
-}
-
 // Lock 分布式锁结构
 type Lock struct {
-	Key         string                //锁使用的key
-	ClientID    string                //客户端id
-	MaxTTL      time.Duration         //锁的最大过期时间
-	CheckPeriod time.Duration         //等待的轮询间隔
-	client      redis.UniversalClient //redis客户端对象
+	ClientID    string        //客户端id
+	CheckPeriod time.Duration //等待的轮询间隔
+	*clientkey.ClientKey
 }
 
 //New 新建一个锁对象
-func New(client redis.UniversalClient, key, clientID string, maxttl time.Duration, checkperiod ...time.Duration) (*Lock, error) {
+func New(k *clientkey.ClientKey, clientID string, checkperiod ...time.Duration) (*Lock, error) {
 	lock := new(Lock)
-	lock.Key = key
+	lock.ClientKey = k
 	lock.ClientID = clientID
-	lock.MaxTTL = maxttl
-	lock.client = client
 	switch len(checkperiod) {
 	case 0:
 		{
@@ -60,46 +50,11 @@ func New(client redis.UniversalClient, key, clientID string, maxttl time.Duratio
 	return lock, nil
 }
 
-//生命周期操作
-
-//RefreshTTL 刷新key的生存时间
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-func (l *Lock) RefreshTTL(ctx context.Context) error {
-	if l.MaxTTL != 0 {
-		_, err := l.client.Expire(ctx, l.Key, l.MaxTTL).Result()
-		if err != nil {
-			if err == redis.Nil {
-				return nil
-			}
-			return err
-		}
-		return nil
-	}
-	return ErrLockNotSetMaxTLL
-}
-
-//TTL 查看key的剩余时间
-//@params ctx context.Context 上下文信息,用于控制请求的结束
-func (l *Lock) TTL(ctx context.Context) (time.Duration, error) {
-	_, err := l.client.Exists(ctx, l.Key).Result()
-	if err != nil {
-		if err != redis.Nil {
-			return 0, err
-		}
-		return 0, ErrKeyNotExist
-	}
-	res, err := l.client.TTL(ctx, l.Key).Result()
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
-}
-
 //写操作
 
 //Lock 设置锁
 func (l *Lock) Lock(ctx context.Context) error {
-	set, err := l.client.SetNX(ctx, l.Key, l.ClientID, l.MaxTTL).Result()
+	set, err := l.Client.SetNX(ctx, l.Key, l.ClientID, l.Opt.MaxTTL).Result()
 	if err != nil {
 		return err
 	}
@@ -111,7 +66,7 @@ func (l *Lock) Lock(ctx context.Context) error {
 
 //Unlock 释放锁,已经释放锁或无权释放锁时报错
 func (l *Lock) Unlock(ctx context.Context) error {
-	clientid, err := l.client.Get(ctx, l.Key).Result()
+	clientid, err := l.Client.Get(ctx, l.Key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			// key不存在,不是锁定状态
@@ -122,7 +77,7 @@ func (l *Lock) Unlock(ctx context.Context) error {
 	if clientid != l.ClientID {
 		return ErrNoRightToUnLocked
 	}
-	_, err = l.client.Del(ctx, l.Key).Result()
+	_, err = l.Client.Del(ctx, l.Key).Result()
 	if err != nil {
 		return err
 	}
@@ -133,7 +88,7 @@ func (l *Lock) Unlock(ctx context.Context) error {
 
 //Check 检测是否是锁定状态,true为锁定状态,false为非锁定状态
 func (l *Lock) Check(ctx context.Context) (bool, error) {
-	r, err := l.client.Exists(ctx, l.Key).Result()
+	r, err := l.Client.Exists(ctx, l.Key).Result()
 	if err != nil {
 		return false, err
 	}
