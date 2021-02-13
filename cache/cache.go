@@ -61,7 +61,7 @@ func New(k *clientkey.ClientKey, lock h.Canlock, updatePeriod ...string) (*Cache
 //RegistUpdateFunc 注册缓存函数到对象
 func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 	if c.updateFunc != nil {
-		return errors.New("缓存函数已经注册")
+		return ErrUpdateFuncAlreadyRegisted
 	}
 	c.updateFunc = fn
 	return nil
@@ -127,10 +127,10 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 //AutoUpdate 自动更新缓存
 func (c *Cache) AutoUpdate() error {
 	if c.UpdatePeriod == "" {
-		return errors.New("自动更新需要设置UpdatePeriod")
+		return ErrAutoUpdateNeedUpdatePeriod
 	}
 	if c.c != nil {
-		return errors.New("已经启动了自动更新任务")
+		return ErrAutoUpdateAlreadyStarted
 	}
 	c.c = cron.New()
 	c.c.AddFunc(c.UpdatePeriod, func() {

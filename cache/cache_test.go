@@ -2,9 +2,11 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/Golang-Tools/redishelper/lock"
 	"github.com/Golang-Tools/redishelper/randomkey"
 	"github.com/go-redis/redis/v8"
@@ -14,34 +16,40 @@ import (
 //TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func Test_new_Lock_err(t *testing.T) {
-	// 准备工作
+func NewBackground(t *testing.T, cachekeyname string, cacheopt *clientkey.Option, lockkeyname string, lockopt *clientkey.Option) (*clientkey.ClientKey, *clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
-		assert.Error(t, err, "init from url error")
+		assert.FailNow(t, err.Error(), "init from url error")
 	}
 	cli := redis.NewClient(options)
-	defer cli.Close()
-
 	ctx := context.Background()
+	cli.FlushDB(ctx).Result()
 	_, err = cli.FlushDB(ctx).Result()
 	if err != nil {
-		assert.Error(t, err, "FlushDB error")
+		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	lock1, err := lock.New(cli, "testlock", "client01", 10*time.Second)
+	lockkey, err := clientkey.New(cli, lockkeyname, lockopt)
 	if err != nil {
-		assert.Error(t, err, "new locked error")
+		assert.FailNow(t, err.Error(), "create key error")
 	}
-	cache, err := New("test_cache_key", 60*time.Second, lock1, cli)
+	fmt.Println("prepare task done")
+	cachekey, err := clientkey.New(cli, cachekeyname, cacheopt)
 	if err != nil {
-		assert.Error(t, err, "new cache error")
+		assert.FailNow(t, err.Error(), "create key error")
+	}
+	fmt.Println("prepare task done")
+	return lockkey, cachekey, ctx
+}
+func Test_new_Lock_err(t *testing.T) {
+	// 准备工作
+	lockkey, cachekey, ctx := NewBackground(t, "test_cache", nil, "test_cache_lock", nil)
+	lock, err := lock.New(lockkey, "lock1")
+	cache, err := New(cachekey, lock)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "new cache error")
 	}
 	cache.RegistUpdateFunc(func() ([]byte, error) {
-		err := randomkey.InitGenerator(uint16(3))
-		if err != nil {
-			return nil, err
-		}
-		a, err := randomkey.NextKey()
+		a, err := randomkey.Next()
 		if err != nil {
 			return nil, err
 		}
@@ -50,12 +58,12 @@ func Test_new_Lock_err(t *testing.T) {
 
 	a, err := cache.Get(ctx)
 	if err != nil {
-		assert.Error(t, err, "cache.Get a error")
+		assert.FailNow(t, err.Error(), "cache.Get a error")
 	}
 	time.Sleep(1)
 	b, err := cache.Get(ctx)
 	if err != nil {
-		assert.Error(t, err, "cache.Get b error")
+		assert.FailNow(t, err.Error(), "cache.Get b error")
 	}
 	assert.Equal(t, a, b)
 }
