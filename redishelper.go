@@ -37,3 +37,10 @@ type CanBeCounter interface {
 	CanBeGenerator
 	CanBeCount
 }
+
+//Canlock 锁对象的接口
+type Canlock interface {
+	Lock(context.Context) error
+	Unlock(context.Context) error
+	Wait(context.Context) error
+}
