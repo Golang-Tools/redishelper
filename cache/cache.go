@@ -78,13 +78,13 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 
 	go func(ctx context.Context, res []byte) {
 		err := c.lock.Lock(ctx)
-
 		if err != nil {
 			if err == lock.ErrAlreadyLocked {
 				log.Warn("缓存已被锁定")
 				return
 			}
 			log.Error("获得分布式锁错误", log.Dict{"err": err.Error()})
+			c.lock.Unlock(ctx)
 			return
 		}
 		defer c.lock.Unlock(ctx)

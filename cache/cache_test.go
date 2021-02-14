@@ -42,7 +42,14 @@ func NewBackground(t *testing.T, cachekeyname string, cacheopt *clientkey.Option
 }
 func Test_new_Lock_err(t *testing.T) {
 	// 准备工作
-	lockkey, cachekey, ctx := NewBackground(t, "test_cache", nil, "test_cache_lock", nil)
+	lockkey, cachekey, ctx := NewBackground(t,
+		"test_cache",
+		nil,
+		"test_cache_lock",
+		&clientkey.Option{
+			MaxTTL: 10 * time.Second,
+		},
+	)
 	lock, err := lock.New(lockkey, "lock1")
 	cache, err := New(cachekey, lock)
 	if err != nil {
@@ -60,7 +67,7 @@ func Test_new_Lock_err(t *testing.T) {
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get a error")
 	}
-	time.Sleep(1)
+	time.Sleep(1 * time.Second)
 	b, err := cache.Get(ctx)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get b error")
