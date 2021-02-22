@@ -4,8 +4,8 @@ import (
 	"errors"
 )
 
-//ErrKeyNotSetMaxTLL key没有设置最大tll
-var ErrKeyNotSetMaxTLL = errors.New("key没有设置最大tll")
+//ErrBatchNotSetMaxTLL batch没有设置最大tll
+var ErrBatchNotSetMaxTLL = errors.New("batch没有设置最大tll")
 
 //ErrKeysMustMoreThanOne keys参数个数必须大于0
 var ErrKeysMustMoreThanOne = errors.New("keys参数个数必须大于0")

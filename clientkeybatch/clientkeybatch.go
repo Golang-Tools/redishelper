@@ -208,15 +208,18 @@ func (k *ClientKeyBatch) Delete(ctx context.Context) error {
 //RefreshTTL 刷新key的生存时间
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 func (k *ClientKeyBatch) RefreshTTL(ctx context.Context) error {
-	pipe := k.Client.TxPipeline()
-	for _, key := range k.Keys {
-		pipe.Expire(ctx, key, k.Opt.MaxTTL)
+	if k.Opt.MaxTTL != 0 {
+		pipe := k.Client.TxPipeline()
+		for _, key := range k.Keys {
+			pipe.Expire(ctx, key, k.Opt.MaxTTL)
+		}
+		_, err := pipe.Exec(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	_, err := pipe.Exec(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
+	return ErrBatchNotSetMaxTLL
 }
 
 //AutoRefresh 自动刷新key的过期时间
