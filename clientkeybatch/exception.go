@@ -4,17 +4,17 @@ import (
 	"errors"
 )
 
-//ErrClientCannotBePipeliner client不能是pipeliner
-var ErrClientCannotBePipeliner = errors.New("client不能是pipeliner")
-
 //ErrKeyNotSetMaxTLL key没有设置最大tll
 var ErrKeyNotSetMaxTLL = errors.New("key没有设置最大tll")
 
-//ErrKeyNotExist key不存在
-var ErrKeyNotExist = errors.New("key不存在")
+//ErrKeysMustMoreThanOne keys参数个数必须大于0
+var ErrKeysMustMoreThanOne = errors.New("keys参数个数必须大于0")
 
-//ErrParamDelimiterLengthMustLessThan2 不定长参数delimiter长度必须小于2
-var ErrParamDelimiterLengthMustLessThan2 = errors.New("不定长参数delimiter长度必须小于2")
+//ErrKeysMustSameClient keys必须使用相同的客户端对象
+var ErrKeysMustSameClient = errors.New("keys必须使用相同的客户端对象")
+
+//ErrKeysMustSameType keys必须为相同的类型
+var ErrKeysMustSameType = errors.New("keys必须为相同的类型")
 
 //ErrAutoRefreshTaskHasBeenSet 已经启动了自动刷新任务
 var ErrAutoRefreshTaskHasBeenSet = errors.New("已经启动了自动刷新任务")
@@ -24,6 +24,3 @@ var ErrAutoRefreshTaskHNotSetYet = errors.New("自动刷新任务未启动")
 
 //ErrAutoRefreshTaskInterval 未设置自动刷新任务的间隔
 var ErrAutoRefreshTaskInterval = errors.New("未设置自动刷新任务的间隔")
-
-//ErrKeysMustMoreThanOne keys参数个数必须大于0
-var ErrKeysMustMoreThanOne = errors.New("keys参数个数必须大于0")

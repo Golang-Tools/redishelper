@@ -200,10 +200,10 @@ func Test_new_key_with_maxttl_and_ttl_op(t *testing.T) {
 	// 还未设置过期
 	left, err := key.TTL(ctx)
 	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
+		assert.Equal(t, ErrKeyNotSetExpire, err)
+	} else {
+		assert.FailNow(t, "not get error")
 	}
-	assert.Equal(t, time.Duration(-1), left)
-
 	//设置过期
 	err = key.RefreshTTL(ctx)
 	time.Sleep(1 * time.Second)

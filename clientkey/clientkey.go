@@ -100,6 +100,9 @@ func (k *ClientKey) TTL(ctx context.Context) (time.Duration, error) {
 	if err != nil {
 		return 0, err
 	}
+	if int64(res) == -1 {
+		return 0, ErrKeyNotSetExpire
+	}
 	if int64(res) == -2 {
 		return 0, ErrKeyNotExist
 	}
