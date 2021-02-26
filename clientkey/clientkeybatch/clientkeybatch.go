@@ -225,10 +225,10 @@ func (k *ClientKeyBatch) RefreshTTL(ctx context.Context) error {
 //AutoRefresh 自动刷新key的过期时间
 func (k *ClientKeyBatch) AutoRefresh() error {
 	if k.autorefreshtaskid != 0 {
-		return ErrAutoRefreshTaskHasBeenSet
+		return clientkey.ErrAutoRefreshTaskHasBeenSet
 	}
 	if k.Opt.AutoRefreshInterval == "" {
-		return ErrAutoRefreshTaskInterval
+		return clientkey.ErrAutoRefreshTaskInterval
 	}
 	taskid, err := k.Opt.TaskCron.AddFunc(k.Opt.AutoRefreshInterval, func() {
 		ctx := context.Background()
@@ -249,7 +249,7 @@ func (k *ClientKeyBatch) AutoRefresh() error {
 func (k *ClientKeyBatch) StopAutoRefresh(force bool) error {
 	if force == true {
 		if k.Opt.AutoRefreshInterval == "" {
-			return ErrAutoRefreshTaskHNotSetYet
+			return clientkey.ErrAutoRefreshTaskHNotSetYet
 		}
 		if k.autorefreshtaskid != 0 {
 			k.Opt.TaskCron.Remove(k.autorefreshtaskid)
@@ -259,7 +259,7 @@ func (k *ClientKeyBatch) StopAutoRefresh(force bool) error {
 		return nil
 	}
 	if k.Opt.AutoRefreshInterval == "" || k.autorefreshtaskid == 0 {
-		return ErrAutoRefreshTaskHNotSetYet
+		return clientkey.ErrAutoRefreshTaskHNotSetYet
 	}
 	k.Opt.TaskCron.Remove(k.autorefreshtaskid)
 	k.autorefreshtaskid = 0

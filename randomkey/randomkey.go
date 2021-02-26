@@ -4,49 +4,77 @@
 package randomkey
 
 import (
-	"fmt"
+	"errors"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/sony/sonyflake"
 )
 
+func privateIPv4() (net.IP, error) {
+	as, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, a := range as {
+		ipnet, ok := a.(*net.IPNet)
+		if !ok || ipnet.IP.IsLoopback() {
+			continue
+		}
+
+		ip := ipnet.IP.To4()
+		if isPrivateIPv4(ip) {
+			return ip, nil
+		}
+	}
+	return nil, errors.New("no private ip address")
+}
+func isPrivateIPv4(ip net.IP) bool {
+	return ip != nil &&
+		(ip[0] == 10 || ip[0] == 172 && (ip[1] >= 16 && ip[1] < 32) || ip[0] == 192 && ip[1] == 168)
+}
+
+func lower16BitPrivateIP() (uint16, error) {
+	ip, err := privateIPv4()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint16(ip[2])<<8 + uint16(ip[3]), nil
+}
+
 var defaultSetting = sonyflake.Settings{
 	StartTime: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
-	MachineID: func() (uint16, error) {
-		netInterfaces, err := net.Interfaces()
-		if err != nil {
-			return uint16(0), nil
-		}
-		macAddr := ""
-		for _, netInterface := range netInterfaces {
-			mac := netInterface.HardwareAddr.String()
-			if len(mac) == 0 {
-				continue
-			}
-			macAddr = mac
-		}
-		if macAddr == "" {
-			return uint16(0), nil
-		}
-		fmt.Println(macAddr)
-		b := strings.Split(macAddr, ":")
-		value, err := strconv.ParseUint(b[len(b)-1], 16, 16)
-		if err != nil {
-			return uint16(0), nil
-		}
-		value2 := uint16(value)
-		return value2, nil
-	},
 }
+
 var generator *sonyflake.Sonyflake = sonyflake.NewSonyflake(defaultSetting)
+
+//machineID 当前机器的id字符串
+var machineID uint16 = 0
 
 //InitGenerator 初始化默认生成器
 func InitGenerator(opt sonyflake.Settings) *sonyflake.Sonyflake {
+	mID, err := opt.MachineID()
+	if err != nil {
+		opt.MachineID = nil
+	}
+	machineID = mID
 	generator = sonyflake.NewSonyflake(opt)
 	return generator
+}
+
+//GetMachineID 获取生成器的MachineID
+func GetMachineID() uint16 {
+	if machineID == 0 {
+		mID, err := lower16BitPrivateIP()
+		if err != nil {
+			return machineID
+		}
+		machineID = mID
+	}
+	return machineID
 }
 
 //Next 随机生成key

@@ -8,7 +8,6 @@ import (
 
 	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/Golang-Tools/redishelper/exception"
-	"github.com/Golang-Tools/redishelper/utils"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -234,7 +233,7 @@ func (r *Ranker) Range(ctx context.Context, reverse bool, scop ...int64) ([]stri
 //@params reverse bool 倒序排序
 func (r *Ranker) First(ctx context.Context, n int64, reverse bool) ([]string, error) {
 	if n <= 0 {
-		return nil, utils.ErrParamMustBePositive
+		return nil, ErrParamNMustBePositive
 	}
 	return r.Range(ctx, reverse, int64(0), n-1)
 }
@@ -253,7 +252,7 @@ func (r *Ranker) Head(ctx context.Context, count int64, reverse bool) ([]string,
 //@params reverse bool 倒序排序
 func (r *Ranker) Last(ctx context.Context, n int64, reverse bool) ([]string, error) {
 	if n <= 0 {
-		return nil, utils.ErrParamMustBePositive
+		return nil, ErrParamNMustBePositive
 	}
 	return r.Range(ctx, !reverse, 0, n-1)
 }
@@ -278,7 +277,7 @@ func (r *Ranker) GetRank(ctx context.Context, element string, reverse bool) (int
 		res, err := r.Client.ZRevRank(ctx, r.Key, element).Result()
 		if err != nil {
 			if err == redis.Nil {
-				return -1, utils.ErrElementNotExist
+				return -1, exception.ErrElementNotExist
 			}
 			return -1, err
 		}
@@ -287,7 +286,7 @@ func (r *Ranker) GetRank(ctx context.Context, element string, reverse bool) (int
 	res, err := r.Client.ZRank(ctx, r.Key, element).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return -1, utils.ErrElementNotExist
+			return -1, exception.ErrElementNotExist
 		}
 		return -1, err
 	}
@@ -305,7 +304,7 @@ func (r *Ranker) GetElementByRank(ctx context.Context, rank int64, reverse bool)
 		return "", err
 	}
 	if len(res) != 1 {
-		return "", utils.ErrRankerror
+		return "", ErrRankerror
 	}
 	return res[0], nil
 }

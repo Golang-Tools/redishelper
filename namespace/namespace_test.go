@@ -3,7 +3,7 @@ package namespace
 import (
 	"testing"
 
-	"github.com/Golang-Tools/redishelper/utils"
+	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -163,7 +163,7 @@ func Test_namespace_fromkey_with_multi_delimiter_option(t *testing.T) {
 	keyStr := "a::b::c"
 	_, _, err := FromKeyStr(keyStr, &DelimiterOpt{}, &DelimiterOpt{})
 	if err != nil {
-		assert.Equal(t, utils.ErrParamOptsLengthMustLessThan2, err)
+		assert.Equal(t, exception.ErrParamOptsLengthMustLessThan2, err)
 
 	} else {
 		assert.FailNow(t, "can not get error")

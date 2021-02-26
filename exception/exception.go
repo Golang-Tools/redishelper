@@ -9,3 +9,6 @@ var ErrParamOptsLengthMustLessThan2 = errors.New("不定长参数opts长度必�
 
 //ErrParamScopLengthMoreThan2 不定长参数scop的长度不能大于2
 var ErrParamScopLengthMoreThan2 = errors.New("不定长参数scop的长度不能大于2")
+
+//ErrElementNotExist 元素不存在
+var ErrElementNotExist = errors.New("元素不存在")

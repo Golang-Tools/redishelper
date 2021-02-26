@@ -227,20 +227,20 @@ func Test_new_key_with_maxttl_and_ttl_op(t *testing.T) {
 	// 测试autorefresh报错
 	err = key.AutoRefresh()
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskInterval, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskInterval, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}
 	//未启动自动更新就停止
 	err = key.StopAutoRefresh(false)
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskHNotSetYet, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskHNotSetYet, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}
 	err = key.StopAutoRefresh(true)
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskHNotSetYet, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskHNotSetYet, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}
@@ -284,7 +284,7 @@ func Test_new_key_with_defaultautorefresh(t *testing.T) {
 	}
 	err = key.AutoRefresh()
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskHasBeenSet, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskHasBeenSet, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}
@@ -329,7 +329,7 @@ func Test_new_key_with_defaultautorefresh_close_before_autorefresh(t *testing.T)
 	//未启动自动更新就停止
 	err = key.StopAutoRefresh(false)
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskHNotSetYet, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskHNotSetYet, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}
@@ -344,7 +344,7 @@ func Test_new_key_with_defaultautorefresh_close_before_autorefresh(t *testing.T)
 	}
 	err = key.AutoRefresh()
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskHasBeenSet, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskHasBeenSet, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}
@@ -389,7 +389,7 @@ func Test_new_key_with_defaultautorefresh_soft_close(t *testing.T) {
 	}
 	err = key.AutoRefresh()
 	if err != nil {
-		assert.Equal(t, ErrAutoRefreshTaskHasBeenSet, err)
+		assert.Equal(t, clientkey.ErrAutoRefreshTaskHasBeenSet, err)
 	} else {
 		assert.FailNow(t, "not get error")
 	}

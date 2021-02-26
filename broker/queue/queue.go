@@ -8,7 +8,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	message "github.com/Golang-Tools/redishelper/message"
+	message "github.com/Golang-Tools/redishelper/broker/message"
 	"github.com/go-redis/redis/v8"
 )
 
