@@ -40,7 +40,7 @@ func SerializeWithJSON() Option {
 //SerializeWithMsgpack 使用JSON作为序列化反序列化的协议
 func SerializeWithMsgpack() Option {
 	return newFuncOption(func(o *Options) {
-		o.SerializeProtocol = "message"
+		o.SerializeProtocol = "msgpack"
 	})
 }
 
