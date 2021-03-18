@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,32 +34,17 @@ func NewBackground(t *testing.T, URL string) (redis.UniversalClient, context.Con
 	return cli, ctx
 }
 
-func Test_new_key_with_multi_opts(t *testing.T) {
-	// 准备工作
-	cli, _ := NewBackground(t, TEST_REDIS_URL)
-	defer cli.Close()
-	//开始
-	_, err := New(cli, []string{"test_batchkey1", "test_batchkey2"}, &clientkey.Option{}, &clientkey.Option{})
-	if err != nil {
-		assert.Equal(t, exception.ErrParamOptsLengthMustLessThan2, err)
-	} else {
-		assert.FailNow(t, "key new get error")
-	}
-}
-
 func Test_new_key_no_conn(t *testing.T) {
 	// 准备工作
 	cli, ctx := NewBackground(t, TEST_REDIS_URL_NO_CONN)
 	defer cli.Close()
 	//开始
-	key, err := New(cli, []string{"test_batchkey41", "test_batchkey42"}, &clientkey.Option{
-		MaxTTL:              3 * time.Second,
-		AutoRefreshInterval: "*/1 * * * *",
-	})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
-	_, err = key.AllExists(ctx)
+	key := New(cli,
+		[]string{"test_batchkey41", "test_batchkey42"},
+		clientkey.WithMaxTTL(3*time.Second),
+		clientkey.WithAutoRefreshInterval("*/1 * * * *"),
+	)
+	_, err := key.AllExists(ctx)
 	assert.NotNil(t, err)
 	_, err = key.AnyExists(ctx)
 	assert.NotNil(t, err)
@@ -85,10 +69,7 @@ func Test_new_key(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	//开始
-	key, err := New(cli, []string{"test_batchkey31", "test_batchkey32"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
+	key := New(cli, []string{"test_batchkey31", "test_batchkey32"})
 	ok, err := key.AnyExists(ctx)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
@@ -146,10 +127,7 @@ func Test_new_key_with_empty_opt_and_not_exits_key(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	//开始
-	key, err := New(cli, []string{"test_batchkey21", "test_batchkey22"}, nil)
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
+	key := New(cli, []string{"test_batchkey21", "test_batchkey22"})
 	ok, err := key.AnyExists(ctx)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
@@ -181,13 +159,12 @@ func Test_new_key_with_maxttl_and_ttl_op(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli,
+	key := New(
+		cli,
 		[]string{"test_batchkey11", "test_batchkey12"},
-		&clientkey.Option{MaxTTL: 3 * time.Second})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
-	_, err = key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
+		clientkey.WithMaxTTL(3*time.Second),
+	)
+	_, err := key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Set key error")
 	}
@@ -257,14 +234,14 @@ func Test_new_key_with_defaultautorefresh(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli,
+	key := New(
+		cli,
 		[]string{"test_batchkey61", "test_batchkey62"},
-		&clientkey.Option{MaxTTL: 100 * time.Second, AutoRefreshInterval: "*/1 * * * *"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
-	}
+		clientkey.WithMaxTTL(100*time.Second),
+		clientkey.WithAutoRefreshInterval("*/1 * * * *"),
+	)
 	// 设置key
-	_, err = key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
+	_, err := key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
 	}
@@ -306,14 +283,15 @@ func Test_new_key_with_defaultautorefresh_close_before_autorefresh(t *testing.T)
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli,
+	key := New(
+		cli,
 		[]string{"test_batchkey71", "test_batchkey72"},
-		&clientkey.Option{MaxTTL: 100 * time.Second, AutoRefreshInterval: "*/1 * * * *"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
-	}
+		clientkey.WithMaxTTL(100*time.Second),
+		clientkey.WithAutoRefreshInterval("*/1 * * * *"),
+	)
+
 	// 设置key
-	_, err = key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
+	_, err := key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
 	}
@@ -362,14 +340,13 @@ func Test_new_key_with_defaultautorefresh_soft_close(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli,
+	key := New(cli,
 		[]string{"test_batchkey81", "test_batchkey82"},
-		&clientkey.Option{MaxTTL: 100 * time.Second, AutoRefreshInterval: "*/1 * * * *"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
-	}
+		clientkey.WithMaxTTL(100*time.Second),
+		clientkey.WithAutoRefreshInterval("*/1 * * * *"),
+	)
 	// 设置key
-	_, err = key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
+	_, err := key.Client.Set(ctx, key.Keys[0], "ok", 0).Result()
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
 	}

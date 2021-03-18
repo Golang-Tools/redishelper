@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,32 +33,13 @@ func NewBackground(t *testing.T, URL string) (redis.UniversalClient, context.Con
 	return cli, ctx
 }
 
-func Test_new_key_with_multi_opts(t *testing.T) {
-	// 准备工作
-	cli, _ := NewBackground(t, TEST_REDIS_URL)
-	defer cli.Close()
-	//开始
-	_, err := New(cli, "test_key1", &Option{}, &Option{})
-	if err != nil {
-		assert.Equal(t, exception.ErrParamOptsLengthMustLessThan2, err)
-	} else {
-		assert.FailNow(t, "key new get error")
-	}
-}
-
 func Test_new_key_no_conn(t *testing.T) {
 	// 准备工作
 	cli, ctx := NewBackground(t, TEST_REDIS_URL_NO_CONN)
 	defer cli.Close()
 	//开始
-	key, err := New(cli, "test_key2", &Option{
-		MaxTTL:              3 * time.Second,
-		AutoRefreshInterval: "*/1 * * * *",
-	})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
-	_, err = key.Exists(ctx)
+	key := New(cli, "test_key2", WithMaxTTL(3*time.Second), WithAutoRefreshInterval("*/1 * * * *"))
+	_, err := key.Exists(ctx)
 	assert.NotNil(t, err)
 	// 测试type
 	_, err = key.Type(ctx)
@@ -82,10 +62,8 @@ func Test_new_key(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	//开始
-	key, err := New(cli, "test_key2")
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
+	key := New(cli, "test_key2")
+
 	ok, err := key.Exists(ctx)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
@@ -108,11 +86,12 @@ func Test_new_key(t *testing.T) {
 	assert.Equal(t, "string", typename)
 
 	// 测试TTL
-	left, err := key.TTL(ctx)
+	_, err = key.TTL(ctx)
 	if err != nil {
-		assert.FailNow(t, err.Error(), "key new TTL get error")
+		assert.Equal(t, err, ErrKeyNotSetExpire)
+	} else {
+		assert.FailNow(t, "not get error")
 	}
-	assert.Equal(t, time.Duration(-1), left)
 
 	// 测试refreshTTL
 	err = key.RefreshTTL(ctx)
@@ -134,10 +113,7 @@ func Test_new_key_with_empty_opt_and_not_exits_key(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	//开始
-	key, err := New(cli, "test_key3", nil)
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
+	key := New(cli, "test_key3")
 	ok, err := key.Exists(ctx)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "key new Exist get error")
@@ -178,11 +154,8 @@ func Test_new_key_with_maxttl_and_ttl_op(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli, "test_key4", &Option{MaxTTL: 3 * time.Second})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new get error")
-	}
-	err = key.RefreshTTL(ctx)
+	key := New(cli, "test_key4", WithMaxTTL(3*time.Second))
+	err := key.RefreshTTL(ctx)
 	if err != nil {
 		assert.Equal(t, ErrKeyNotExist, err)
 	} else {
@@ -247,12 +220,9 @@ func Test_new_key_with_defaultautorefresh(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli, "test_key5", &Option{MaxTTL: 100 * time.Second, AutoRefreshInterval: "*/1 * * * *"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
-	}
+	key := New(cli, "test_key5", WithMaxTTL(100*time.Second), WithAutoRefreshInterval("*/1 * * * *"))
 	// 没有key刷新
-	err = key.RefreshTTL(ctx)
+	err := key.RefreshTTL(ctx)
 	if err != nil {
 		assert.Equal(t, ErrKeyNotExist, err)
 	} else {
@@ -296,12 +266,9 @@ func Test_new_key_with_defaultautorefresh_close_before_autorefresh(t *testing.T)
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli, "test_key5", &Option{MaxTTL: 100 * time.Second, AutoRefreshInterval: "*/1 * * * *"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
-	}
+	key := New(cli, "test_key5", WithMaxTTL(100*time.Second), WithAutoRefreshInterval("*/1 * * * *"))
 	// 没有key刷新
-	err = key.RefreshTTL(ctx)
+	err := key.RefreshTTL(ctx)
 	if err != nil {
 		assert.Equal(t, ErrKeyNotExist, err)
 	} else {
@@ -353,12 +320,9 @@ func Test_new_key_with_defaultautorefresh_soft_close(t *testing.T) {
 	cli, ctx := NewBackground(t, TEST_REDIS_URL)
 	defer cli.Close()
 	// 开始
-	key, err := New(cli, "test_key6", &Option{MaxTTL: 100 * time.Second, AutoRefreshInterval: "*/1 * * * *"})
-	if err != nil {
-		assert.FailNow(t, err.Error(), "key new Exist get error")
-	}
+	key := New(cli, "test_key6", WithMaxTTL(100*time.Second), WithAutoRefreshInterval("*/1 * * * *"))
 	// 没有key刷新
-	err = key.RefreshTTL(ctx)
+	err := key.RefreshTTL(ctx)
 	if err != nil {
 		assert.Equal(t, ErrKeyNotExist, err)
 	} else {

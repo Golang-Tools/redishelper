@@ -6,7 +6,6 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	"github.com/robfig/cron/v3"
 )
@@ -14,7 +13,7 @@ import (
 //ClientKey 描述任意一种的单个key对象
 type ClientKey struct {
 	Key               string
-	Opt               *Option
+	Opt               Options
 	autorefreshtaskid cron.EntryID //定时任务id
 	Client            redis.UniversalClient
 }
@@ -22,49 +21,71 @@ type ClientKey struct {
 //Option 设置key行为的选项
 //@attribute MaxTTL time.Duration 为0则不设置过期
 //@attribute AutoRefresh string 需要为crontab格式的字符串,否则不会自动定时刷新
-type Option struct {
+type Options struct {
 	MaxTTL              time.Duration
 	AutoRefreshInterval string
 	TaskCron            *cron.Cron
+}
+
+// Option configures how we set up the connection.
+type Option interface {
+	Apply(*Options)
+}
+
+// func (emptyOption) apply(*Options) {}
+type funcOption struct {
+	f func(*Options)
+}
+
+func (fo *funcOption) Apply(do *Options) {
+	fo.f(do)
+}
+
+func newFuncOption(f func(*Options)) *funcOption {
+	return &funcOption{
+		f: f,
+	}
+}
+
+//WithMaxTTL 设置最大过期时间
+func WithMaxTTL(maxttl time.Duration) Option {
+	return newFuncOption(func(o *Options) {
+		o.MaxTTL = maxttl
+	})
+}
+
+//WithAutoRefreshInterval 设置自动刷新过期时间的设置
+func WithAutoRefreshInterval(autoRefreshInterval string) Option {
+	return newFuncOption(func(o *Options) {
+		o.AutoRefreshInterval = autoRefreshInterval
+	})
+}
+
+//WithTaskCron 设置定时器
+func WithTaskCron(taskCron *cron.Cron) Option {
+	return newFuncOption(func(o *Options) {
+		o.TaskCron = taskCron
+	})
 }
 
 //New 创建一个新的key对象
 //@params client redis.UniversalClient 客户端对象
 //@params key string bitmap使用的key
 //@params opts ...*KeyOption key的选项
-func New(client redis.UniversalClient, key string, opts ...*Option) (*ClientKey, error) {
-	// _, ok := client.(redis.Pipeliner)
-	// if ok {
-	// 	return nil, ErrClientCannotBePipeliner
-	// }
+func New(client redis.UniversalClient, key string, opts ...Option) *ClientKey {
 	k := new(ClientKey)
 	k.Client = client
 	k.Key = key
-	switch len(opts) {
-	case 0:
-		{
-			k.Opt = &Option{}
-			return k, nil
-		}
-	case 1:
-		{
-			opt := opts[0]
-			if opt == nil {
-				k.Opt = &Option{}
-				return k, nil
-			}
-			if opt.TaskCron == nil && opt.AutoRefreshInterval != "" {
-				opt.TaskCron = cron.New()
-				opt.TaskCron.Start()
-			}
-			k.Opt = opt
-			return k, nil
-		}
-	default:
-		{
-			return nil, exception.ErrParamOptsLengthMustLessThan2
-		}
+	defaultopt := Options{}
+	k.Opt = defaultopt
+	for _, opt := range opts {
+		opt.Apply(&k.Opt)
 	}
+	if k.Opt.TaskCron == nil && k.Opt.AutoRefreshInterval != "" {
+		k.Opt.TaskCron = cron.New()
+		k.Opt.TaskCron.Start()
+	}
+	return k
 }
 
 //Exists 查看key是否存在

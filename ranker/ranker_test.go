@@ -14,7 +14,7 @@ import (
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*clientkey.ClientKey, context.Context) {
+func NewBackground(t *testing.T, keyname string, opts ...clientkey.Option) (*clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
@@ -26,17 +26,14 @@ func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*client
 	if err != nil {
 		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	key, err := clientkey.New(cli, keyname, opt)
-	if err != nil {
-		assert.FailNow(t, err.Error(), "create key error")
-	}
+	key := clientkey.New(cli, keyname, opts...)
 	fmt.Println("prepare task done")
 	return key, ctx
 }
 
 func Test_ranker_FirstLast(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_ranker", nil)
+	key, ctx := NewBackground(t, "test_ranker")
 	defer key.Client.Close()
 	ranker := New(key)
 	//开始测试
@@ -78,7 +75,7 @@ func Test_ranker_FirstLast(t *testing.T) {
 
 func Test_ranker_GetRank(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_ranker", nil)
+	key, ctx := NewBackground(t, "test_ranker")
 	defer key.Client.Close()
 	ranker := New(key)
 	//开始测试

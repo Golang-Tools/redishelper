@@ -7,7 +7,6 @@ import (
 
 	log "github.com/Golang-Tools/loggerhelper"
 	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	"github.com/robfig/cron/v3"
 )
@@ -15,7 +14,7 @@ import (
 //ClientKeyBatch 描述任意一种的一批key对象
 type ClientKeyBatch struct {
 	Keys              []string
-	Opt               *clientkey.Option
+	Opt               clientkey.Options
 	autorefreshtaskid cron.EntryID //定时任务id
 	Client            redis.UniversalClient
 }
@@ -24,75 +23,20 @@ type ClientKeyBatch struct {
 //@params client redis.UniversalClient 客户端对象
 //@params key string bitmap使用的key
 //@params opts ...*KeyOption key的选项
-func New(client redis.UniversalClient, keys []string, opts ...*clientkey.Option) (*ClientKeyBatch, error) {
-	// _, ok := client.(redis.Pipeliner)
-	// if ok {
-	// 	return nil, ErrClientCannotBePipeliner
-	// }
+func New(client redis.UniversalClient, keys []string, opts ...clientkey.Option) *ClientKeyBatch {
 	k := new(ClientKeyBatch)
 	k.Client = client
 	k.Keys = keys
-	if len(keys) == 0 {
-		return nil, ErrKeysMustMoreThanOne
+	defaultopt := clientkey.Options{}
+	k.Opt = defaultopt
+	for _, opt := range opts {
+		opt.Apply(&k.Opt)
 	}
-	switch len(opts) {
-	case 0:
-		{
-			k.Opt = &clientkey.Option{}
-			return k, nil
-		}
-	case 1:
-		{
-			opt := opts[0]
-			if opt == nil {
-				k.Opt = &clientkey.Option{}
-				return k, nil
-			}
-			if opt.TaskCron == nil && opt.AutoRefreshInterval != "" {
-				opt.TaskCron = cron.New()
-				opt.TaskCron.Start()
-			}
-			k.Opt = opt
-			return k, nil
-		}
-	default:
-		{
-			return nil, exception.ErrParamOptsLengthMustLessThan2
-		}
+	if k.Opt.TaskCron == nil && k.Opt.AutoRefreshInterval != "" {
+		k.Opt.TaskCron = cron.New()
+		k.Opt.TaskCron.Start()
 	}
-}
-
-//NewFromClientKey 从多个clientkey转变为一个keybatch
-func NewFromClientKey(ctx context.Context, opt *clientkey.Option, checkType bool, keys ...*clientkey.ClientKey) (*ClientKeyBatch, error) {
-	keysLen := len(keys)
-	if keysLen == 0 {
-		return nil, ErrKeysMustMoreThanOne
-	}
-	keyclient := keys[0].Client
-	keytype, err := keys[0].Type(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if keysLen == 1 {
-		return New(keyclient, []string{keys[0].Key}, opt)
-	}
-	keystrings := []string{}
-	for _, key := range keys[1:] {
-		if key.Client != keyclient {
-			return nil, ErrKeysMustSameClient
-		}
-		if checkType {
-			_keytype, err := key.Type(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if _keytype != keytype {
-				return nil, ErrKeysMustSameType
-			}
-			keystrings = append(keystrings, key.Key)
-		}
-	}
-	return New(keyclient, keystrings, opt)
+	return k
 }
 
 //AllExists 查看key是否存在
@@ -267,14 +211,12 @@ func (k *ClientKeyBatch) StopAutoRefresh(force bool) error {
 }
 
 //ToArray 将batch转化为key的序列
-func (k *ClientKeyBatch) ToArray() ([]*clientkey.ClientKey, error) {
+func (k *ClientKeyBatch) ToArray() []*clientkey.ClientKey {
 	res := []*clientkey.ClientKey{}
 	for _, keystring := range k.Keys {
-		key, err := clientkey.New(k.Client, keystring, k.Opt)
-		if err != nil {
-			return nil, err
-		}
+		key := clientkey.New(k.Client, keystring)
+		key.Opt = k.Opt
 		res = append(res, key)
 	}
-	return res, nil
+	return res
 }
