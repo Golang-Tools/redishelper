@@ -7,7 +7,9 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	message "github.com/Golang-Tools/redishelper/message"
+	"github.com/Golang-Tools/redishelper/broker/event"
+	"github.com/Golang-Tools/redishelper/clientkey"
+	kb "github.com/Golang-Tools/redishelper/clientkey/clientkeybatch"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,28 +17,53 @@ import (
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func Test_queue_put(t *testing.T) {
-	// 准备工作
+func NewBackgroundProducerKey(t *testing.T, keyname string, opts ...clientkey.Option) *clientkey.ClientKey {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
-		assert.Error(t, err, "init from url error")
+		assert.FailNow(t, err.Error(), "init from url error")
 	}
 	cli := redis.NewClient(options)
-	defer cli.Close()
-
 	ctx := context.Background()
+	cli.FlushDB(ctx).Result()
 	_, err = cli.FlushDB(ctx).Result()
 	if err != nil {
-		assert.Error(t, err, "FlushDB error")
+		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	q := New(cli)
-
+	key := clientkey.New(cli, keyname, opts...)
+	fmt.Println("prepare task done")
+	return key
+}
+func NewBackgroundConsumerKey(t *testing.T, keyname string, opts ...clientkey.Option) (*kb.ClientKeyBatch, context.Context) {
+	options, err := redis.ParseURL(TEST_REDIS_URL)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "init from url error")
+	}
+	cli := redis.NewClient(options)
+	ctx := context.Background()
+	cli.FlushDB(ctx).Result()
+	_, err = cli.FlushDB(ctx).Result()
+	if err != nil {
+		assert.FailNow(t, err.Error(), "FlushDB error")
+	}
+	key := kb.New(cli, []string{keyname}, opts...)
+	fmt.Println("prepare task done")
+	return key, ctx
+}
+func Test_queue_put(t *testing.T) {
+	// 准备工作
+	keyname := "test_queue"
+	pk := NewBackgroundProducerKey(t, keyname)
+	p := NewProducer(pk)
+	q := p.AsQueue()
+	ctx := context.Background()
+	// ck, ctx := NewBackgroundConsumerKey(t, keyname)
+	// c := NewConsumer(ck)
 	//开始测试
-	err = q.Publish(ctx, []byte("test1"), "test_queue")
+	err := p.Publish(ctx, []byte("test1"))
 	if err != nil {
 		assert.Error(t, err, "queue put error")
 	}
-	res, err := q.Len(ctx, "test_queue")
+	res, err := q.Len(ctx)
 	if err != nil {
 		assert.Error(t, err, "queue len error")
 	}
@@ -45,30 +72,51 @@ func Test_queue_put(t *testing.T) {
 
 func Test_queue_listen(t *testing.T) {
 	// 准备工作
-	options, err := redis.ParseURL(TEST_REDIS_URL)
-	if err != nil {
-		assert.Error(t, err, "init from url error")
-	}
-	cli := redis.NewClient(options)
-	defer cli.Close()
-
-	ctx := context.Background()
-	_, err = cli.FlushDB(ctx).Result()
-	if err != nil {
-		assert.Error(t, err, "FlushDB error")
-	}
-	q := New(cli)
+	keyname := "test_queue"
+	pk := NewBackgroundProducerKey(t, keyname)
+	p := NewProducer(pk)
+	// q := p.AsQueue()
+	ck, ctx := NewBackgroundConsumerKey(t, keyname)
+	c := NewConsumer(ck)
 
 	//开始测试
-	q.Subscribe("test_queue", func(msg *message.Message) error {
-		log.Info("get mes", log.Dict{"msg": msg})
+	c.RegistHandler(keyname, func(evt *event.Event) error {
+		log.Info("get event", log.Dict{"evt": evt})
 		return nil
 	})
-	go q.Listen(false, "test_queue")
-	defer q.StopListening()
+	go c.Listen(false)
+	defer c.StopListening()
 	for _, ele := range []int{1, 2, 3} {
 		time.Sleep(time.Second)
-		err = q.Publish(ctx, []byte(fmt.Sprintf("test-%d", ele)), "test_queue")
+		err := p.Publish(ctx, []byte(fmt.Sprintf("test-%d", ele)))
+		if err != nil {
+			assert.Error(t, err, "queue put error")
+		}
+	}
+	for _, ele := range []int{1, 2, 3} {
+		time.Sleep(time.Second)
+		err := p.Publish(ctx, fmt.Sprintf("test-%d", ele))
+		if err != nil {
+			assert.Error(t, err, "queue put error")
+		}
+	}
+	for _, ele := range []int{1, 2, 3} {
+		time.Sleep(time.Second)
+		err := p.Publish(ctx, ele)
+		if err != nil {
+			assert.Error(t, err, "queue put error")
+		}
+	}
+	for _, ele := range []bool{true, false} {
+		time.Sleep(time.Second)
+		err := p.Publish(ctx, ele)
+		if err != nil {
+			assert.Error(t, err, "queue put error")
+		}
+	}
+	for _, ele := range []float32{0.1, 0.2, 0.3} {
+		time.Sleep(time.Second)
+		err := p.Publish(ctx, ele)
 		if err != nil {
 			assert.Error(t, err, "queue put error")
 		}

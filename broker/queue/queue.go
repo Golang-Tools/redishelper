@@ -7,7 +7,10 @@ import (
 
 	"github.com/Golang-Tools/redishelper/broker"
 	"github.com/Golang-Tools/redishelper/clientkey"
+	jsoniter "github.com/json-iterator/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 //Queue 消息队列
 type Queue struct {

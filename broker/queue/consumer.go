@@ -13,12 +13,8 @@ import (
 	"github.com/Golang-Tools/redishelper/clientkey/clientkeybatch"
 	"github.com/Golang-Tools/redishelper/randomkey"
 	"github.com/go-redis/redis/v8"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/vmihailenco/msgpack"
-	msgpack "github.com/vmihailenco/msgpack/v5"
+	"github.com/vmihailenco/msgpack/v5"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type Parser func(topic, payload string) (*event.Event, error)
 
@@ -92,12 +88,16 @@ func (s *Consumer) defaultParser(topic, payload string) (*event.Event, error) {
 		{
 			err := json.Unmarshal([]byte(payload), &m)
 			if err != nil {
-				return nil, err
-			}
-			if m.EventID == "" {
-				err := json.Unmarshal([]byte(payload), p)
-				if err != nil {
-					return nil, err
+				if err != nil || m.EventID == "" {
+					// log.Error("default parser message error 1", log.Dict{"err": err})
+					p := map[string]interface{}{}
+					err := json.Unmarshal([]byte(payload), &p)
+					if err != nil {
+						// log.Error("default parser message error 2", log.Dict{"err": err})
+						m.Payload = string(payload)
+					} else {
+						m.Payload = p
+					}
 				}
 			}
 			return &m, nil
@@ -105,13 +105,14 @@ func (s *Consumer) defaultParser(topic, payload string) (*event.Event, error) {
 	case "msgpack":
 		{
 			err := msgpack.Unmarshal([]byte(payload), &m)
-			if err != nil {
-				return nil, err
-			}
-			if m.EventID == "" {
-				err := json.Unmarshal([]byte(payload), p)
+			if err != nil || m.EventID == "" {
+				p := map[string]interface{}{}
+				err := json.Unmarshal([]byte(payload), &p)
 				if err != nil {
-					return nil, err
+					// log.Error("default parser message error 2", log.Dict{"err": err})
+					m.Payload = string(payload)
+				} else {
+					m.Payload = p
 				}
 			}
 			return &m, nil
@@ -234,15 +235,12 @@ func (s *Consumer) StopListening() error {
 	return nil
 }
 
-func (s *Consumer) AsQueueArray() ([]*Queue, error) {
-	l, err := s.ClientKeyBatch.ToArray()
-	if err != nil {
-		return nil, err
-	}
+func (s *Consumer) AsQueueArray() []*Queue {
+	l := s.ClientKeyBatch.ToArray()
 	result := []*Queue{}
 	for _, k := range l {
 		q := New(k)
 		result = append(result, q)
 	}
-	return result, nil
+	return result
 }

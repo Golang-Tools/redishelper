@@ -12,12 +12,9 @@ import (
 	"github.com/Golang-Tools/redishelper/broker/event"
 	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/Golang-Tools/redishelper/randomkey"
-	jsoniter "github.com/json-iterator/go"
 	uuid "github.com/satori/go.uuid"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 //Producer 队列的生产者对象
 type Producer struct {
@@ -47,34 +44,105 @@ func NewProducer(k *clientkey.ClientKey, opts ...broker.Option) *Producer {
 //@params ctx context.Context 请求的上下文
 //@params payload interface{} 发送的消息负载
 func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
-	switch p.opt.SerializeProtocol {
-	case "JSON":
+	switch payload.(type) {
+	case string:
 		{
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				return err
-			}
-			p.Client.LPush(ctx, p.Key, payloadBytes).Result()
+			p.Client.LPush(ctx, p.Key, payload).Result()
 		}
-	case "msgpack":
+	case []byte:
 		{
-			payloadBytes, err := msgpack.Marshal(payload)
-			if err != nil {
-				return err
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case bool:
+		{
+			if payload.(bool) == true {
+				p.Client.LPush(ctx, p.Key, "true").Result()
+			} else {
+				p.Client.LPush(ctx, p.Key, "false").Result()
 			}
-			p.Client.LPush(ctx, p.Key, payloadBytes).Result()
+		}
+	case uint:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case uint8:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case uint16:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case uint32:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case uint64:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case int:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case int8:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case int16:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case int32:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case int64:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case float32:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
+		}
+	case float64:
+		{
+			p.Client.LPush(ctx, p.Key, payload).Result()
 		}
 	default:
 		{
-			return broker.ErrUnSupportSerializeProtocol
+			switch p.opt.SerializeProtocol {
+			case "JSON":
+				{
+					payloadBytes, err := json.Marshal(payload)
+					if err != nil {
+						return err
+					}
+					p.Client.LPush(ctx, p.Key, payloadBytes).Result()
+				}
+			case "msgpack":
+				{
+					payloadBytes, err := msgpack.Marshal(payload)
+					if err != nil {
+						return err
+					}
+					p.Client.LPush(ctx, p.Key, payloadBytes).Result()
+				}
+			default:
+				{
+					return broker.ErrUnSupportSerializeProtocol
+				}
+			}
 		}
 	}
+
 	if p.Opt.MaxTTL != 0 {
 		err := p.RefreshTTL(ctx)
 		if err != nil {
 			return err
 		}
 	}
+	return nil
 }
 
 //PubEvent 向队列中放入事件数据
