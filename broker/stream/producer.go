@@ -3,13 +3,11 @@ package stream
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"strconv"
 	"time"
 
-	log "github.com/Golang-Tools/loggerhelper"
 	"github.com/Golang-Tools/redishelper/broker"
 	"github.com/Golang-Tools/redishelper/broker/event"
 	redis "github.com/go-redis/redis/v8"
@@ -33,6 +31,119 @@ func NewProducer(k *Stream, opts ...broker.Option) *Producer {
 		opt.Apply(&c.opt)
 	}
 	return c
+}
+func (p *Producer) pasmap(pl map[string]interface{}) (map[string]interface{}, error) {
+	result := map[string]interface{}{}
+	for key, value := range pl {
+		v := reflect.ValueOf(value)
+		switch v.Kind() {
+		case reflect.Bool:
+			{
+				if value.(bool) == true {
+					result[key] = "true"
+				} else {
+					result[key] = "false"
+				}
+			}
+		case reflect.Int, reflect.Int8, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint32, reflect.Uint64:
+			{
+				result[key] = value
+			}
+		case reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+			{
+				result[key] = value
+			}
+		case reflect.String:
+			{
+				result[key] = value
+			}
+		case reflect.Slice:
+			{
+				_, ok := value.([]byte)
+				if ok {
+					result[key] = value
+				} else {
+					switch p.opt.SerializeProtocol {
+					case "JSON":
+						{
+							payloadstr, err := json.MarshalToString(value)
+							if err != nil {
+								return nil, err
+							}
+							result[key] = payloadstr
+						}
+					case "msgpack":
+						{
+							payloadBytes, err := msgpack.Marshal(value)
+							if err != nil {
+								return nil, err
+							}
+							result[key] = string(payloadBytes)
+						}
+					default:
+						{
+							return nil, broker.ErrUnSupportSerializeProtocol
+						}
+					}
+				}
+			}
+		case reflect.Map:
+			{
+				switch p.opt.SerializeProtocol {
+				case "JSON":
+					{
+						payloadstr, err := json.MarshalToString(value)
+						if err != nil {
+							return nil, err
+						}
+						result[key] = payloadstr
+					}
+				case "msgpack":
+					{
+						payloadBytes, err := msgpack.Marshal(value)
+						if err != nil {
+							return nil, err
+						}
+						result[key] = string(payloadBytes)
+					}
+				default:
+					{
+						return nil, broker.ErrUnSupportSerializeProtocol
+					}
+				}
+			}
+		case reflect.Chan:
+			{
+				return nil, errors.New("not support chan as payload")
+			}
+		default:
+			{
+				switch p.opt.SerializeProtocol {
+				case "JSON":
+					{
+						payloadstr, err := json.MarshalToString(value)
+						if err != nil {
+							return nil, err
+						}
+						result[key] = payloadstr
+					}
+				case "msgpack":
+					{
+						payloadBytes, err := msgpack.Marshal(value)
+						if err != nil {
+							return nil, err
+						}
+						result[key] = string(payloadBytes)
+					}
+				default:
+					{
+						return nil, broker.ErrUnSupportSerializeProtocol
+					}
+				}
+			}
+		}
+	}
+	return result, nil
 }
 
 //Publish 向流中放入数据
@@ -64,20 +175,24 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 		}
 	case reflect.Slice:
 		{
-			_, ok := payload.([]byte)
+			payloadb, ok := payload.([]byte)
 			if ok {
-				args.Values = map[string]interface{}{"value": payload}
+				args.Values = map[string]interface{}{"value": string(payloadb)}
 			} else {
 				return errors.New("not support slice as payload")
 			}
 		}
 	case reflect.Map:
 		{
-			pl, err := payload.(map[string]interface{})
-			for key, value := range pl {
-
+			pl, ok := payload.(map[string]interface{})
+			if ok != true {
+				return errors.New("payload can not cast map as map[string]interface{}")
 			}
-			args.Values = payload
+			res, err := p.pasmap(pl)
+			if err != nil {
+				return err
+			}
+			args.Values = res
 		}
 	case reflect.Chan:
 		{
@@ -97,7 +212,11 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 					if err != nil {
 						return err
 					}
-					args.Values = mm
+					res, err := p.pasmap(mm)
+					if err != nil {
+						return err
+					}
+					args.Values = res
 				}
 			case "msgpack":
 				{
@@ -109,7 +228,11 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 					if err != nil {
 						return err
 					}
-					args.Values = mm
+					res, err := p.pasmap(mm)
+					if err != nil {
+						return err
+					}
+					args.Values = res
 				}
 			default:
 				{
@@ -127,7 +250,7 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 	args.ID = "*"
 
 	_, err := p.Client.XAdd(ctx, &args).Result()
-	log.Info("send msg", log.Dict{"args": args, "err": err})
+	// log.Info("send msg", log.Dict{"args": args, "err": err})
 	return err
 }
 

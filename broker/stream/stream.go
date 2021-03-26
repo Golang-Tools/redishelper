@@ -9,7 +9,10 @@ import (
 	"github.com/Golang-Tools/redishelper/clientkey"
 	set "github.com/deckarep/golang-set"
 	"github.com/go-redis/redis/v8"
+	jsoniter "github.com/json-iterator/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 //Stream 流对象
 type Stream struct {
