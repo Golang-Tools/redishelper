@@ -17,7 +17,7 @@ type Queue struct {
 	*clientkey.ClientKey
 }
 
-//New 创建一个新的queue对象
+//New 创建一个新的队列对象
 //@params k *clientkey.ClientKey redis客户端的键对象
 func New(k *clientkey.ClientKey) *Queue {
 	c := new(Queue)

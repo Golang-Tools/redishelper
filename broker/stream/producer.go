@@ -1,29 +1,28 @@
-//Package stream 流对象
-//非常适合作为简单的生产者消费者模式的中间件
+//Package stream 流及相关对象的包
 package stream
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"time"
 
+	log "github.com/Golang-Tools/loggerhelper"
 	"github.com/Golang-Tools/redishelper/broker"
 	"github.com/Golang-Tools/redishelper/broker/event"
 	redis "github.com/go-redis/redis/v8"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
-//Producer 队列的生产者对象
+//Producer 流的生产者对象
 type Producer struct {
 	opt broker.Options
 	*Stream
 }
 
-//NewProducer 创建一个新的queue的生产者
+//NewProducer 创建一个新的流生产者
 //@params k *clientkey.ClientKey redis客户端的键对象
 //@params opts ...broker.Option 生产者的配置
 func NewProducer(k *Stream, opts ...broker.Option) *Producer {
@@ -40,10 +39,7 @@ func NewProducer(k *Stream, opts ...broker.Option) *Producer {
 //@params ctx context.Context 请求的上下文
 //@params payload interface{} 发送的消息负载,负载如果不是map[string]interface{}形式或者可以被json/msgpack序列化的对象则统一以[value 值]的形式传出
 func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
-	args := redis.XAddArgs{
-		Stream: p.Key,
-		ID:     "*",
-	}
+	args := redis.XAddArgs{}
 	v := reflect.ValueOf(payload)
 	switch v.Kind() {
 	case reflect.Bool:
@@ -77,13 +73,16 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 		}
 	case reflect.Map:
 		{
+			pl, err := payload.(map[string]interface{})
+			for key, value := range pl {
+
+			}
 			args.Values = payload
 		}
 	case reflect.Chan:
 		{
 			return errors.New("not support chan as payload")
 		}
-		fmt.Printf("chan %v\n", v.Interface())
 	default:
 		{
 			mm := map[string]interface{}{}
@@ -118,25 +117,21 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 				}
 			}
 		}
-		if p.Strict {
-			args.MaxLen = p.MaxLen
-		} else {
-			args.MaxLenApprox = p.MaxLen
-		}
-		p.Client.XAdd(ctx, &args).Result()
-		return nil
 	}
+	if p.Strict {
+		args.MaxLen = p.MaxLen
+	} else {
+		args.MaxLenApprox = p.MaxLen
+	}
+	args.Stream = p.Key
+	args.ID = "*"
 
-	if p.Opt.MaxTTL != 0 {
-		err := p.RefreshTTL(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := p.Client.XAdd(ctx, &args).Result()
+	log.Info("send msg", log.Dict{"args": args, "err": err})
+	return err
 }
 
-//PubEvent 向队列中放入事件数据
+//PubEvent 向流中放入事件数据
 //@params ctx context.Context 请求的上下文
 //@params payload []byte 发送的消息负载
 func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
@@ -149,4 +144,8 @@ func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
 	}
 
 	return p.Publish(ctx, msg)
+}
+
+func (p *Producer) AsStream() *Stream {
+	return p.Stream
 }

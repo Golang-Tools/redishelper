@@ -16,13 +16,13 @@ import (
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )
 
-//Producer 队列的生产者对象
+//Producer 发布订阅器生产者对象
 type Producer struct {
 	*clientkey.ClientKey
 	opt broker.Options
 }
 
-//NewProducer 创建一个新的queue的生产者
+//NewProducer 创建一个新的发布订阅器的生产者
 //@params k *clientkey.ClientKey redis客户端的键对象
 //@params opts ...broker.Option 生产者的配置
 func NewProducer(k *clientkey.ClientKey, opts ...broker.Option) *Producer {
@@ -97,7 +97,7 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 	return nil
 }
 
-//PubEvent 向队列中放入事件数据
+//PubEvent 向发布订阅器中放入事件数据
 //@params ctx context.Context 请求的上下文
 //@params payload []byte 发送的消息负载
 func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {

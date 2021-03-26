@@ -7,13 +7,15 @@ import (
 	"github.com/Golang-Tools/redishelper/broker/event"
 )
 
+//ConsumerABC 消费者的基类
+//定义了回调函数的注册操作和执行操作
 type ConsumerABC struct {
 	Handdlers     map[string][]event.Handdler
 	Handdlerslock sync.RWMutex
 }
 
-//RegistHandler 将回调函数注册到queue上
-//@params topic string 注册的topic,topic可以是具体的key也可以是*,表示监听所有消息
+//RegistHandler 将回调函数注册到指定topic上
+//@params topic string 注册的topic,topic可以是具体的key也可以是*,*表示监听所有消息
 //@params fn event.Handdler 注册到topic上的回调函数
 func (c *ConsumerABC) RegistHandler(topic string, fn event.Handdler) error {
 	// if q.listenCtxCancel != nil {
@@ -50,7 +52,10 @@ func (c *ConsumerABC) UnRegistHandler(topic string) error {
 	return nil
 }
 
-func (c *ConsumerABC) HanddlerEvent(asyncHanddler bool, topic string, evt *event.Event) {
+//HanddlerEvent 调用回调函数处理消息
+//@param asyncHanddler bool 是否异步执行回调函数
+//@param evt *event.Event 待处理的消息
+func (c *ConsumerABC) HanddlerEvent(asyncHanddler bool, evt *event.Event) {
 	c.Handdlerslock.RLock()
 	allevthanddlers, ok := c.Handdlers["*"]
 	if ok {
@@ -72,7 +77,7 @@ func (c *ConsumerABC) HanddlerEvent(asyncHanddler bool, topic string, evt *event
 			}
 		}
 	}
-	handdlers, ok := c.Handdlers[topic]
+	handdlers, ok := c.Handdlers[evt.Topic]
 	if ok {
 		if asyncHanddler {
 			for _, handdler := range handdlers {

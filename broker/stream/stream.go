@@ -5,19 +5,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/Golang-Tools/redishelper/broker"
 	"github.com/Golang-Tools/redishelper/clientkey"
 	set "github.com/deckarep/golang-set"
 	"github.com/go-redis/redis/v8"
 )
-
-// //Handdler 获取到stream结果的回调
-// type Handdler func(*redis.XStream) error
-
-// //TopicInfo 消费者监听时指定的topic信息
-// type TopicInfo struct {
-// 	Topic string
-// 	Start string
-// }
 
 //Stream 流对象
 type Stream struct {
@@ -26,8 +18,10 @@ type Stream struct {
 	*clientkey.ClientKey
 }
 
-//New 创建一个新的queue对象
+//New 创建一个新的流对象
 //@params k *clientkey.ClientKey redis客户端的键对象
+//@params maxlen int64 流对象的最大长度
+//@params strict bool 流是否严格控制长度
 func New(k *clientkey.ClientKey, maxlen int64, strict bool) *Stream {
 	c := new(Stream)
 	c.ClientKey = k
@@ -57,7 +51,7 @@ func (s *Stream) Trim(ctx context.Context, count int64, strict bool) (int64, err
 
 //Delete 设置标志位标识删除流中指定id的数据
 //@params ctx context.Context 上下文信息,用于控制请求的结束
-//@params ids ...string 要删除的id列表
+//@params ids ...string 要删除的消息id列表
 func (s *Stream) Delete(ctx context.Context, ids ...string) error {
 	_, err := s.Client.XDel(ctx, s.Key, ids...).Result()
 	if err != nil {
@@ -68,7 +62,6 @@ func (s *Stream) Delete(ctx context.Context, ids ...string) error {
 
 //Range 获取消息列表,会自动过滤已经删除的消息
 //@params ctx context.Context 请求的上下文
-//@params start string 开始位置,`-`表示最小值, `+`表示最大值,可以指定毫秒级时间戳,也可以指定特定消息id
 //@params start string 开始位置,`-`表示最小值, `+`表示最大值,可以指定毫秒级时间戳,也可以指定特定消息id
 //@params stop string 结束位置,`-`表示最小值, `+`表示最大值,可以指定毫秒级时间戳,也可以指定特定消息id
 func (s *Stream) Range(ctx context.Context, start, stop string) ([]redis.XMessage, error) {
@@ -207,4 +200,9 @@ func (s *Stream) Ack(ctx context.Context, groupname string, ids ...string) error
 		return err
 	}
 	return nil
+}
+
+func (s *Stream) AsProducer(opts ...broker.Option) *Producer {
+	p := NewProducer(s, opts...)
+	return p
 }

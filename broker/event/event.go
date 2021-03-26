@@ -10,7 +10,7 @@ import (
 
 //Event 消息对象
 type Event struct {
-	Topic     string      `json:"topic" msgpack:"topic"`
+	Topic     string      `json:"topic,omitempty" msgpack:"topic"`
 	Sender    string      `json:"sender,omitempty" msgpack:"sender,omitempty"`
 	EventTime int64       `json:"event_time,omitempty" msgpack:"event_time,omitempty"`
 	EventID   string      `json:"event_id,omitempty" msgpack:"event_id,omitempty"`
@@ -18,7 +18,7 @@ type Event struct {
 }
 
 //Handdler 处理消息的回调函数
-//@params msg *Message Message对象
+//@params msg *Event Event对象
 type Handdler func(msg *Event) error
 
 //Parser 用于将负载字符串转化为event的函数
@@ -26,6 +26,7 @@ type Handdler func(msg *Event) error
 //规定eventID为""时解析除流之外的消息,用到SerializeProtocol,topic, payloadstr
 type Parser func(SerializeProtocol, topic, eventID, payloadstr string, payload map[string]interface{}) (*Event, error)
 
+//DefaultParser 默认的消息处理函数负载会被解析为 map[string]interface{}
 func DefaultParser(SerializeProtocol, topic, eventID, payloadstr string, payload map[string]interface{}) (*Event, error) {
 	m := Event{}
 	if eventID == "" {
@@ -131,6 +132,8 @@ func DefaultParser(SerializeProtocol, topic, eventID, payloadstr string, payload
 			m.EventTime = et.(int64)
 			delete(payload, "event_time")
 		}
+		m.Topic = topic
+		m.EventID = eventID
 		m.Payload = payload
 	}
 	return &m, nil

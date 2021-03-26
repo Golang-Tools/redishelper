@@ -22,7 +22,7 @@ type Producer struct {
 	opt broker.Options
 }
 
-//NewProducer 创建一个新的queue的生产者
+//NewProducer 创建一个新的队列生产者对象
 //@params k *clientkey.ClientKey redis客户端的键对象
 //@params opts ...broker.Option 生产者的配置
 func NewProducer(k *clientkey.ClientKey, opts ...broker.Option) *Producer {

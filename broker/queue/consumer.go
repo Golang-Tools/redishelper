@@ -15,7 +15,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-//Consumer 流消费者对象
+//Consumer 队列消费者对象
 type Consumer struct {
 	listenCtxCancel context.CancelFunc
 	*clientkeybatch.ClientKeyBatch
@@ -23,9 +23,9 @@ type Consumer struct {
 	opt broker.Options
 }
 
-//NewConsumer 创建一个新的位图对象
+//NewConsumer 创建一个新的队列消费者对象
 //@params k *clientkeybatch.ClientKeyBatch redis客户端的批键对象
-//@params opts ...broker.Option 生产者的配置
+//@params opts ...broker.Option 消费者的配置
 func NewConsumer(kb *clientkeybatch.ClientKeyBatch, opts ...broker.Option) *Consumer {
 	c := new(Consumer)
 	c.ConsumerABC = &consumerabc.ConsumerABC{
@@ -80,7 +80,7 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 			return nil
 		default:
 			{
-				topic, msg, err := s.Get(ctx, 1*time.Second)
+				topic, msg, err := s.Get(ctx, s.opt.BlockTime)
 				if err != nil {
 					switch err {
 					case redis.Nil:
@@ -114,7 +114,7 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 						log.Error("queue parser message error", log.Dict{"err": err})
 						continue
 					}
-					s.ConsumerABC.HanddlerEvent(asyncHanddler, topic, evt)
+					s.ConsumerABC.HanddlerEvent(asyncHanddler, evt)
 				}
 			}
 		}
@@ -130,6 +130,8 @@ func (s *Consumer) StopListening() error {
 	return nil
 }
 
+//AsQueueArray 从消费者构造由队列对象组成的序列
+//序列顺序与keys中键的顺序一致
 func (s *Consumer) AsQueueArray() []*Queue {
 	l := s.ClientKeyBatch.ToArray()
 	result := []*Queue{}

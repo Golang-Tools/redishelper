@@ -1,5 +1,4 @@
-//Package pubsub 队列对象
-//非常适合作为简单的生产者消费者模式的中间件
+//Package 发布订阅器对象
 package pubsub
 
 import (
@@ -14,7 +13,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-//Consumer 流消费者对象
+//Consumer 发布订阅器消费者对象
 type Consumer struct {
 	listenPubsub *redis.PubSub
 	*clientkeybatch.ClientKeyBatch
@@ -22,9 +21,9 @@ type Consumer struct {
 	opt broker.Options
 }
 
-//NewConsumer 创建一个新的位图对象
+//NewConsumer 创建一个新的发布订阅器消费者对象
 //@params k *clientkeybatch.ClientKeyBatch redis客户端的批键对象
-//@params opts ...broker.Option 生产者的配置
+//@params opts ...broker.Option 消费者的配置
 func NewConsumer(kb *clientkeybatch.ClientKeyBatch, opts ...broker.Option) *Consumer {
 	c := new(Consumer)
 	c.ConsumerABC = &consumerabc.ConsumerABC{
@@ -40,6 +39,8 @@ func NewConsumer(kb *clientkeybatch.ClientKeyBatch, opts ...broker.Option) *Cons
 }
 
 //Listen 监听发布订阅器
+//@params asyncHanddler bool 是否并行执行回调
+//@params p ...Parser 解析输入消息为事件对象的函数
 func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 	if s.listenPubsub != nil {
 		return ErrPubSubAlreadyListened
@@ -71,7 +72,7 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 			log.Error("pubsub parser message error", log.Dict{"err": err})
 			continue
 		}
-		s.ConsumerABC.HanddlerEvent(asyncHanddler, topic, evt)
+		s.ConsumerABC.HanddlerEvent(asyncHanddler, evt)
 	}
 	return nil
 }

@@ -4,8 +4,6 @@ import (
 	"errors"
 )
 
-
-
 //ErrPubSubAlreadyListened 发布订阅器已经被监听了
 var ErrPubSubAlreadyListened = errors.New("发布订阅器已经被监听了")
 
