@@ -1,6 +1,6 @@
 //Package queue 队列对象
 //非常适合作为简单的生产者消费者模式的中间件
-package queue
+package stream
 
 import (
 	"context"
@@ -18,6 +18,8 @@ import (
 //Consumer 流消费者对象
 type Consumer struct {
 	listenCtxCancel context.CancelFunc
+	TopicInfos      []string
+	RecvBatch       int64
 	*clientkeybatch.ClientKeyBatch
 	*consumerabc.ConsumerABC
 	opt broker.Options
@@ -25,8 +27,10 @@ type Consumer struct {
 
 //NewConsumer 创建一个新的位图对象
 //@params k *clientkeybatch.ClientKeyBatch redis客户端的批键对象
+//@params start string 监听的起始位置
+//@params recvBatch int64 一次获取的量
 //@params opts ...broker.Option 生产者的配置
-func NewConsumer(kb *clientkeybatch.ClientKeyBatch, opts ...broker.Option) *Consumer {
+func NewConsumer(kb *clientkeybatch.ClientKeyBatch, start string, recvBatch int64, opts ...broker.Option) *Consumer {
 	c := new(Consumer)
 	c.ConsumerABC = &consumerabc.ConsumerABC{
 		Handdlers:     map[string][]event.Handdler{},
@@ -37,35 +41,44 @@ func NewConsumer(kb *clientkeybatch.ClientKeyBatch, opts ...broker.Option) *Cons
 	for _, opt := range opts {
 		opt.Apply(&c.opt)
 	}
+	if recvBatch != 0 {
+		c.RecvBatch = recvBatch
+	} else {
+		c.RecvBatch = 1
+	}
+	topics := []string{}
+	starts := []string{}
+	cstart := "$"
+	if start != "" {
+		cstart = start
+	}
+	for _, key := range c.Keys {
+		topics = append(topics, key)
+		starts = append(starts, cstart)
+	}
+	topics = append(topics, starts...)
+	c.TopicInfos = topics
 	return c
 }
 
-//Get 从多个队列中取出数据,timeout为0则表示一直阻塞直到有数据
+//Get 从多个流中取出数据
 //@params ctx context.Context 请求的上下文
-//@params timeout time.Duration 等待超时时间
-//@returns string, string, error 依顺序为topic,payload,err
-func (s *Consumer) Get(ctx context.Context, timeout time.Duration) (string, string, error) {
-	if s.Opt.MaxTTL != 0 {
-		defer s.RefreshTTL(ctx)
+//@params timeout time.Duration 等待超时时间,为0则表示一直阻塞直到有数据
+func (s *Consumer) Get(ctx context.Context, timeout time.Duration) ([]redis.XStream, error) {
+	args := redis.XReadArgs{
+		Streams: s.TopicInfos,
+		Count:   s.RecvBatch,
+		Block:   timeout,
 	}
-	res, err := s.Client.BRPop(ctx, timeout, s.Keys...).Result()
-	if err != nil {
-		return "", "", err
-	}
-	if len(res) != 2 {
-		return "", "", ErrQueueResNotTwo
-	}
-	topic := res[0]
-	payload := res[1]
-	return topic, payload, nil
+	return s.Client.XRead(ctx, &args).Result()
 }
 
-//Listen 监听一个队列
+//Listen 监听一个流
 //@params asyncHanddler bool 是否并行执行回调
 //@params p ...Parser 监听队列的解析函数
 func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 	if s.listenCtxCancel != nil {
-		return ErrQueueAlreadyListened
+		return ErrStreamConsumerAlreadyListened
 	}
 	defer func() {
 		s.listenCtxCancel = nil
@@ -80,7 +93,7 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 			return nil
 		default:
 			{
-				topic, msg, err := s.Get(ctx, 1*time.Second)
+				msgs, err := s.Get(ctx, 1*time.Second)
 				if err != nil {
 					switch err {
 					case redis.Nil:
@@ -93,28 +106,35 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 						}
 					default:
 						{
-							log.Error("queue get message error", log.Dict{"err": err})
+							log.Error("stream get message error", log.Dict{"err": err})
 							return err
 						}
 					}
 				} else {
-					var evt *event.Event
-					var err error
-					switch len(p) {
-					case 0:
-						{
-							evt, err = event.DefaultParser(s.opt.SerializeProtocol, topic, "", msg, nil)
-						}
-					default:
-						{
-							evt, err = p[0](s.opt.SerializeProtocol, topic, "", msg, nil)
+					for _, xstream := range msgs {
+						topic := xstream.Stream
+						for _, xmsg := range xstream.Messages {
+							eventID := xmsg.ID
+							payload := xmsg.Values
+							var evt *event.Event
+							var err error
+							switch len(p) {
+							case 0:
+								{
+									evt, err = event.DefaultParser("", topic, eventID, "", payload)
+								}
+							default:
+								{
+									evt, err = p[0]("", topic, eventID, "", payload)
+								}
+							}
+							if err != nil {
+								log.Error("queue parser message error", log.Dict{"err": err})
+								continue
+							}
+							s.ConsumerABC.HanddlerEvent(asyncHanddler, topic, evt)
 						}
 					}
-					if err != nil {
-						log.Error("queue parser message error", log.Dict{"err": err})
-						continue
-					}
-					s.ConsumerABC.HanddlerEvent(asyncHanddler, topic, evt)
 				}
 			}
 		}
@@ -124,18 +144,8 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 //StopListening 停止监听
 func (s *Consumer) StopListening() error {
 	if s.listenCtxCancel == nil {
-		return ErrQueueNotListeningYet
+		return ErrStreamConsumerNotListeningYet
 	}
 	s.listenCtxCancel()
 	return nil
-}
-
-func (s *Consumer) AsQueueArray() []*Queue {
-	l := s.ClientKeyBatch.ToArray()
-	result := []*Queue{}
-	for _, k := range l {
-		q := New(k)
-		result = append(result, q)
-	}
-	return result
 }

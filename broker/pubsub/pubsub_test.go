@@ -1,4 +1,4 @@
-package queue
+package pubsub
 
 import (
 	"context"
@@ -50,30 +50,10 @@ func NewBackgroundConsumerKey(t *testing.T, keyname string, opts ...clientkey.Op
 	fmt.Println("prepare task done")
 	return key, ctx
 }
-func Test_queue_put(t *testing.T) {
-	// 准备工作
-	keyname := "test_queue"
-	pk := NewBackgroundProducerKey(t, keyname)
-	p := NewProducer(pk)
-	q := p.AsQueue()
-	ctx := context.Background()
-	// ck, ctx := NewBackgroundConsumerKey(t, keyname)
-	// c := NewConsumer(ck)
-	//开始测试
-	err := p.Publish(ctx, []byte("test1"))
-	if err != nil {
-		assert.Error(t, err, "queue put error")
-	}
-	res, err := q.Len(ctx)
-	if err != nil {
-		assert.Error(t, err, "queue len error")
-	}
-	assert.Equal(t, int64(1), res)
-}
 
-func Test_queue_listen(t *testing.T) {
+func Test_pubsub_listen(t *testing.T) {
 	// 准备工作
-	keyname := "test_queue"
+	keyname := "test_pubsub"
 	pk := NewBackgroundProducerKey(t, keyname)
 	p := NewProducer(pk)
 	// q := p.AsQueue()
@@ -91,43 +71,43 @@ func Test_queue_listen(t *testing.T) {
 		time.Sleep(time.Second)
 		err := p.Publish(ctx, []byte(fmt.Sprintf("test-%d", ele)))
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	for _, ele := range []int{1, 2, 3} {
 		time.Sleep(time.Second)
 		err := p.Publish(ctx, fmt.Sprintf("test-%d", ele))
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	for _, ele := range []int{1, 2, 3} {
 		time.Sleep(time.Second)
 		err := p.Publish(ctx, ele)
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	for _, ele := range []bool{true, false} {
 		time.Sleep(time.Second)
 		err := p.Publish(ctx, ele)
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	for _, ele := range []float32{0.1, 0.2, 0.3} {
 		time.Sleep(time.Second)
 		err := p.Publish(ctx, ele)
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	time.Sleep(time.Second)
 }
 
-func Test_queue_json_event_listen(t *testing.T) {
+func Test_pubsub_json_event_listen(t *testing.T) {
 	// 准备工作
-	keyname := "test_queue"
+	keyname := "test_pubsub"
 	pk := NewBackgroundProducerKey(t, keyname)
 	p := NewProducer(pk)
 	// q := p.AsQueue()
@@ -145,15 +125,15 @@ func Test_queue_json_event_listen(t *testing.T) {
 		time.Sleep(time.Second)
 		err := p.PubEvent(ctx, map[string]interface{}{"getnbr": ele})
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	time.Sleep(time.Second)
 }
 
-func Test_queue_msgpack_event_listen(t *testing.T) {
+func Test_pubsub_msgpack_event_listen(t *testing.T) {
 	// 准备工作
-	keyname := "test_queue"
+	keyname := "test_pubsub"
 	pk := NewBackgroundProducerKey(t, keyname)
 	p := NewProducer(pk, broker.SerializeWithMsgpack())
 	// q := p.AsQueue()
@@ -171,7 +151,7 @@ func Test_queue_msgpack_event_listen(t *testing.T) {
 		time.Sleep(time.Second)
 		err := p.PubEvent(ctx, map[string]interface{}{"getnbr": ele})
 		if err != nil {
-			assert.Error(t, err, "queue put error")
+			assert.Error(t, err, "pubsub put error")
 		}
 	}
 	time.Sleep(time.Second)

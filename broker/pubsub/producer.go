@@ -1,6 +1,6 @@
-//Package queue 队列对象
-//非常适合作为简单的生产者消费者模式的中间件
-package queue
+//Package pubsub 发布订阅器对象
+//非常适合作为简单的广播模式的中间件
+package pubsub
 
 import (
 	"context"
@@ -42,23 +42,24 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 	switch payload.(type) {
 	case string, []byte:
 		{
-			p.Client.LPush(ctx, p.Key, payload).Result()
+			p.Client.Publish(ctx, p.Key, payload).Result()
 		}
 	case bool:
 		{
 			if payload.(bool) == true {
-				p.Client.LPush(ctx, p.Key, "true").Result()
+				p.Client.Publish(ctx, p.Key, "true").Result()
 			} else {
-				p.Client.LPush(ctx, p.Key, "false").Result()
+				p.Client.Publish(ctx, p.Key, "false").Result()
 			}
 		}
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		{
-			p.Client.LPush(ctx, p.Key, payload).Result()
+			p.Client.Publish(ctx, p.Key, payload).Result()
 		}
+
 	case float32, float64, complex64, complex128:
 		{
-			p.Client.LPush(ctx, p.Key, payload).Result()
+			p.Client.Publish(ctx, p.Key, payload).Result()
 		}
 	default:
 		{
@@ -69,7 +70,7 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 					if err != nil {
 						return err
 					}
-					p.Client.LPush(ctx, p.Key, payloadBytes).Result()
+					p.Client.Publish(ctx, p.Key, payloadBytes).Result()
 				}
 			case "msgpack":
 				{
@@ -77,7 +78,7 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 					if err != nil {
 						return err
 					}
-					p.Client.LPush(ctx, p.Key, payloadBytes).Result()
+					p.Client.Publish(ctx, p.Key, payloadBytes).Result()
 				}
 			default:
 				{
@@ -118,9 +119,4 @@ func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
 		msg.EventID = hex.EncodeToString(uuid.NewV4().Bytes())
 	}
 	return p.Publish(ctx, msg)
-}
-
-func (p *Producer) AsQueue() *Queue {
-	q := New(p.ClientKey)
-	return q
 }

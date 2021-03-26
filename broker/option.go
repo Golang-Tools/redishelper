@@ -1,10 +1,20 @@
 package broker
 
+import (
+	"github.com/Golang-Tools/redishelper/randomkey"
+)
+
 //Options broker的配置
 type Options struct {
 	SerializeProtocol string
 	ClientID          uint16
 	UUIDType          string
+}
+
+var Defaultopt = Options{
+	SerializeProtocol: "JSON",
+	ClientID:          randomkey.GetMachineID(),
+	UUIDType:          "sonyflake",
 }
 
 // Option configures how we set up the connection.

@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/Golang-Tools/loggerhelper v0.0.3
+	github.com/deckarep/golang-set v1.7.1
 	github.com/go-redis/redis/v8 v8.7.1
 	github.com/json-iterator/go v1.1.10
 	github.com/robfig/cron/v3 v3.0.1
