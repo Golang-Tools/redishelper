@@ -150,11 +150,11 @@ func (s *Consumer) Listen(asyncHanddler bool, p ...event.Parser) error {
 							switch len(p) {
 							case 0:
 								{
-									evt, err = event.DefaultParser("", topic, eventID, "", payload)
+									evt, err = event.DefaultParser(s.opt.SerializeProtocol, topic, eventID, "", payload)
 								}
 							default:
 								{
-									evt, err = p[0]("", topic, eventID, "", payload)
+									evt, err = p[0](s.opt.SerializeProtocol, topic, eventID, "", payload)
 								}
 							}
 							// log.Info("stream consumer get event", log.Dict{"err": err, "event": evt})

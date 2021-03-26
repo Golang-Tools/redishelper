@@ -1,4 +1,4 @@
-package counter
+package keycounter
 
 import (
 	"context"
@@ -58,7 +58,7 @@ func Test_counter_TTL(t *testing.T) {
 	assert.LessOrEqual(t, int64(ttl), int64(1*time.Second))
 	assert.LessOrEqual(t, int64(0*time.Second), int64(ttl))
 	//NextM可以刷新key
-	res, err = c.NextM(ctx, 3)
+	res, err = c.NextN(ctx, 3)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "counter nextM error")
 	}
@@ -94,7 +94,7 @@ func Test_counter_counter(t *testing.T) {
 	}
 	assert.Equal(t, int64(1), res)
 	//测试 nextM
-	res, err = c.NextM(ctx, 4)
+	res, err = c.NextN(ctx, 4)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "counter.CountM error")
 	}

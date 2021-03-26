@@ -257,7 +257,8 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 //PubEvent 向流中放入事件数据
 //@params ctx context.Context 请求的上下文
 //@params payload []byte 发送的消息负载
-func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
+//@returns *event.Event 发送出去的消息对象
+func (p *Producer) PubEvent(ctx context.Context, payload interface{}) (*event.Event, error) {
 	msg := event.Event{
 		EventTime: time.Now().Unix(),
 		Payload:   payload,
@@ -265,10 +266,9 @@ func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
 	if p.opt.ClientID != 0 {
 		msg.Sender = strconv.FormatUint(uint64(p.opt.ClientID), 16)
 	}
-
-	return p.Publish(ctx, msg)
-}
-
-func (p *Producer) AsStream() *Stream {
-	return p.Stream
+	err := p.Publish(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return &msg, nil
 }

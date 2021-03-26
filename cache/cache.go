@@ -10,7 +10,6 @@ import (
 
 	log "github.com/Golang-Tools/loggerhelper"
 
-	h "github.com/Golang-Tools/redishelper"
 	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/Golang-Tools/redishelper/lock"
 	"github.com/go-redis/redis/v8"
@@ -24,24 +23,21 @@ type Cachefunc func() ([]byte, error)
 //缓存对象的锁可以和缓存不使用同一个redis客户端,甚至可以不用redis,只要他满足Canlock接口
 //缓存设置UpdatePeriod后会自动定时同步数据
 type Cache struct {
-	UpdatePeriod string     //间隔多久主动更新,为空字符串则不主动更新,使用crontab格式
-	lock         h.Canlock  //使用的锁
-	latestHash   string     //上次跟新后保存数据的hash,用于避免重复更新
-	updateFunc   Cachefunc  //更新缓存的函数
-	c            *cron.Cron //定时任务对象
+	latestHash string     //上次跟新后保存数据的hash,用于避免重复更新
+	updateFunc Cachefunc  //更新缓存的函数
+	c          *cron.Cron //定时任务对象
 	*clientkey.ClientKey
+	opt Options
 }
 
 //New 创建一个缓存实例
 //updatePeriod会取最后设置的非空字符串
-func New(k *clientkey.ClientKey, lock h.Canlock, updatePeriods ...string) *Cache {
+func New(k *clientkey.ClientKey, opts ...Option) *Cache {
 	cache := new(Cache)
 	cache.ClientKey = k
-	cache.lock = lock
-	for _, updatePeriod := range updatePeriods {
-		if updatePeriod != "" {
-			cache.UpdatePeriod = updatePeriod
-		}
+	cache.opt = Defaultopt
+	for _, opt := range opts {
+		opt.Apply(&cache.opt)
 	}
 	return cache
 }
@@ -66,17 +62,17 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 	}
 
 	go func(ctx context.Context, res []byte) {
-		err := c.lock.Lock(ctx)
+		err := c.opt.Lock.Lock(ctx)
 		if err != nil {
 			if err == lock.ErrAlreadyLocked {
 				log.Debug("缓存已被锁定")
 				return
 			}
 			log.Debug("获得分布式锁错误", log.Dict{"err": err.Error()})
-			c.lock.Unlock(ctx)
+			c.opt.Lock.Unlock(ctx)
 			return
 		}
-		defer c.lock.Unlock(ctx)
+		defer c.opt.Lock.Unlock(ctx)
 		h := md5.New()
 		h.Write(res)
 		resMd5 := hex.EncodeToString(h.Sum(nil))
@@ -116,14 +112,14 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 
 //AutoUpdate 自动更新缓存
 func (c *Cache) AutoUpdate() error {
-	if c.UpdatePeriod == "" {
+	if c.opt.UpdatePeriod == "" {
 		return ErrAutoUpdateNeedUpdatePeriod
 	}
 	if c.c != nil {
 		return ErrAutoUpdateAlreadyStarted
 	}
 	c.c = cron.New()
-	c.c.AddFunc(c.UpdatePeriod, func() {
+	c.c.AddFunc(c.opt.UpdatePeriod, func() {
 		ctx := context.Background()
 		_, err := c.Update(ctx)
 		if err != nil {
@@ -136,7 +132,7 @@ func (c *Cache) AutoUpdate() error {
 
 //StopAutoUpdate 取消自动更新缓存
 func (c *Cache) StopAutoUpdate() error {
-	if c.UpdatePeriod == "" || c.c == nil {
+	if c.opt.UpdatePeriod == "" || c.c == nil {
 		return errors.New("自动更新未启动")
 	}
 	c.c.Stop()

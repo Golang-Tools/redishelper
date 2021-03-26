@@ -36,7 +36,7 @@ var Defaultopt = Options{
 	SerializeProtocol: "JSON",
 	ClientID:          randomkey.GetMachineID(),
 	UUIDType:          "sonyflake",
-	BlockTime:         100 * time.Millisecond,
+	BlockTime:         1000 * time.Millisecond,
 	RecvBatchSize:     1,
 	Group:             "",
 	AckMode:           AckModeAckWhenGet,

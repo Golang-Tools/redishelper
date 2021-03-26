@@ -143,7 +143,7 @@ func Test_queue_json_event_listen(t *testing.T) {
 	defer c.StopListening()
 	for _, ele := range []int{1, 2, 3} {
 		time.Sleep(time.Second)
-		err := p.PubEvent(ctx, map[string]interface{}{"getnbr": ele})
+		_, err := p.PubEvent(ctx, map[string]interface{}{"getnbr": ele})
 		if err != nil {
 			assert.Error(t, err, "queue put error")
 		}
@@ -169,7 +169,7 @@ func Test_queue_msgpack_event_listen(t *testing.T) {
 	defer c.StopListening()
 	for _, ele := range []int{1, 2, 3} {
 		time.Sleep(time.Second)
-		err := p.PubEvent(ctx, map[string]interface{}{"getnbr": ele})
+		_, err := p.PubEvent(ctx, map[string]interface{}{"getnbr": ele})
 		if err != nil {
 			assert.Error(t, err, "queue put error")
 		}

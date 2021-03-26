@@ -3,6 +3,7 @@ package redishelper
 import (
 	"context"
 
+	"github.com/Golang-Tools/redishelper/broker/event"
 	"github.com/Golang-Tools/redishelper/clientkey"
 )
 
@@ -38,9 +39,30 @@ type CanBeCounter interface {
 	CanBeCount
 }
 
+//CanBeLimiter 限制器接口
+type CanBeLimiter interface {
+	CanBeCounter
+	Flood(int64) bool
+	WaterLevel() int64
+}
+
 //Canlock 锁对象的接口
 type Canlock interface {
 	Lock(context.Context) error
 	Unlock(context.Context) error
 	Wait(context.Context) error
+}
+
+//CanBeConsumer  消费者对象的接口
+type CanBeConsumer interface {
+	RegistHandler(topic string, fn event.Handdler) error
+	UnRegistHandler(topic string) error
+	Listen(asyncHanddler bool, p ...event.Parser) error
+	StopListening() error
+}
+
+//CanBeProducer 生产者对象的接口
+type CanBeProducer interface {
+	Publish(ctx context.Context, payload interface{}) error
+	PubEvent(ctx context.Context, payload interface{}) (*event.Event, error)
 }

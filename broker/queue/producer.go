@@ -99,7 +99,8 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 //PubEvent 向队列中放入事件数据
 //@params ctx context.Context 请求的上下文
 //@params payload []byte 发送的消息负载
-func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
+//@returns *event.Event 发送出去的消息对象
+func (p *Producer) PubEvent(ctx context.Context, payload interface{}) (*event.Event, error) {
 
 	msg := event.Event{
 		EventTime: time.Now().Unix(),
@@ -111,15 +112,20 @@ func (p *Producer) PubEvent(ctx context.Context, payload interface{}) error {
 	if p.opt.UUIDType == "sonyflake" {
 		mid, err := randomkey.Next()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		msg.EventID = mid
 	} else {
 		msg.EventID = hex.EncodeToString(uuid.NewV4().Bytes())
 	}
-	return p.Publish(ctx, msg)
+	err := p.Publish(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return &msg, nil
 }
 
+//AsQueue 由生产构造队列对象
 func (p *Producer) AsQueue() *Queue {
 	q := New(p.ClientKey)
 	return q
