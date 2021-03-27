@@ -60,7 +60,7 @@ func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error) {
 	var res []byte
 	var reserr error
-	if force == ForceLevelNoConstraint {
+	if force == ForceLevel__NoConstraint {
 		res, reserr = c.updateFunc()
 	} else {
 		//锁限制重复执行
@@ -70,7 +70,7 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 				if err == lock.ErrAlreadyLocked {
 					return nil, err
 				}
-				if force == ForceLevelStrict {
+				if force == ForceLevel__Strict {
 					return nil, err
 				} else {
 					log.Error("分布式锁错误", log.Dict{"err": err.Error()})
@@ -81,7 +81,7 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 		if c.opt.Limiter != nil {
 			canflood, err := c.opt.Limiter.Flood(ctx, 1)
 			if err != nil {
-				if force == ForceLevelStrict {
+				if force == ForceLevel__Strict {
 					return nil, err
 				} else {
 					log.Error("限制器报错", log.Dict{"err": err.Error()})
@@ -99,47 +99,88 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 	if reserr != nil {
 		return nil, reserr
 	}
-	//只有有数据获得才会缓存
-	if res != nil && len(res) > 0 {
-		//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
-		go func(ctx context.Context, res []byte) {
-			if c.opt.Lock != nil {
-				defer c.opt.Lock.Unlock(ctx)
-			}
-			h := md5.New()
-			h.Write(res)
-			resMd5 := hex.EncodeToString(h.Sum(nil))
-			if c.latestHash == "" {
-				_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
-				if err != nil {
-					log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
-					return
-				}
-				log.Debug("设置缓存成功")
-				c.latestHash = resMd5
+	callback := func(ctx context.Context, res []byte) {
+		if c.opt.Lock != nil {
+			defer c.opt.Lock.Unlock(ctx)
+		}
+		h := md5.New()
+		h.Write(res)
+		resMd5 := hex.EncodeToString(h.Sum(nil))
+		if c.latestHash == "" {
+			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+			if err != nil {
+				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
 				return
 			}
-			if c.latestHash != resMd5 {
-				_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
-				if err != nil {
-					log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
-					return
-				}
-				log.Debug("设置缓存成功")
-				c.latestHash = resMd5
-				return
-			}
-			if c.Opt.MaxTTL != 0 {
-				log.Debug("结果未更新,刷新过期时间")
-				_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
-				if err != nil {
-					log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
-					return
-				}
-				log.Debug("设置过期时间成功")
-			}
+			log.Debug("设置缓存成功")
+			c.latestHash = resMd5
 			return
-		}(ctx, res)
+		}
+		if c.latestHash != resMd5 {
+			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+			if err != nil {
+				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
+				return
+			}
+			log.Debug("设置缓存成功")
+			c.latestHash = resMd5
+			return
+		}
+		if c.Opt.MaxTTL != 0 {
+			log.Debug("结果未更新,刷新过期时间")
+			_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
+			if err != nil {
+				log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
+				return
+			}
+			log.Debug("设置过期时间成功")
+		}
+		return
+	}
+
+	if res != nil && len(res) > 0 {
+		//获取的数据不为空
+		//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
+		go callback(ctx, res)
+	} else {
+		//获取的数据为空
+		switch c.opt.EmptyResCacheMode {
+		case EmptyResCacheMode__DELETE:
+			{
+				go func() {
+					if c.Opt.MaxTTL != 0 {
+						log.Debug("删除原有缓存")
+						_, err := c.Client.Del(ctx, c.Key).Result()
+						if err != nil {
+							log.Debug("删除原有缓存报错", log.Dict{"err": err.Error()})
+							return
+						}
+						log.Debug("删除原有缓存")
+					}
+				}()
+
+			}
+		case EmptyResCacheMode__IGNORE:
+			{
+				go func() {
+					if c.Opt.MaxTTL != 0 {
+						log.Debug("结果未更新,刷新过期时间")
+						_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
+						if err != nil {
+							log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
+							return
+						}
+						log.Debug("设置过期时间成功")
+					}
+				}()
+
+			}
+		case EmptyResCacheMode__SAVE:
+			{
+				go callback(ctx, res)
+			}
+		}
+
 	}
 
 	return res, nil
@@ -156,7 +197,7 @@ func (c *Cache) AutoUpdate() error {
 	c.c = cron.New()
 	c.c.AddFunc(c.opt.UpdatePeriod, func() {
 		ctx := context.Background()
-		_, err := c.Update(ctx, ForceLevelStrict)
+		_, err := c.Update(ctx, ForceLevel__Strict)
 		if err != nil {
 
 		}

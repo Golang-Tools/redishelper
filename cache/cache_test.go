@@ -99,18 +99,18 @@ func Test_new_cache_without_MaxTTL_and_without_updatePeriod(t *testing.T) {
 		return []byte(a), err
 	})
 
-	a, err := cache.Get(ctx, ForceLevelStrict)
+	a, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get a error")
 	}
 	time.Sleep(1 * time.Second)
-	b, err := cache.Get(ctx, ForceLevelStrict)
+	b, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get b error")
 	}
 	assert.Equal(t, a, b)
 	time.Sleep(5 * time.Second)
-	c, err := cache.Get(ctx, ForceLevelStrict)
+	c, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get c error")
 	}
@@ -129,13 +129,13 @@ func Test_new_cache_with_MaxTTL_and_without_updatePeriod(t *testing.T) {
 		return []byte(a), err
 	})
 
-	a, err := cache.Get(ctx, ForceLevelStrict)
+	a, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get a error")
 	}
 	for i := 0; i < 10; i++ {
 		time.Sleep(1 * time.Second)
-		b, err := cache.Get(ctx, ForceLevelStrict)
+		b, err := cache.Get(ctx, ForceLevel__Strict)
 		if err != nil {
 			assert.FailNow(t, err.Error(), "cache.Get b error")
 		}
@@ -161,18 +161,18 @@ func Test_new_cache_without_MaxTTL_and_with_updatePeriod(t *testing.T) {
 	}
 	defer cache.StopAutoUpdate()
 
-	a, err := cache.Get(ctx, ForceLevelStrict)
+	a, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get a error")
 	}
 	time.Sleep(1 * time.Second)
-	b, err := cache.Get(ctx, ForceLevelStrict)
+	b, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get b error")
 	}
 	assert.Equal(t, a, b)
 	time.Sleep(60 * time.Second)
-	c, err := cache.Get(ctx, ForceLevelStrict)
+	c, err := cache.Get(ctx, ForceLevel__Strict)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "cache.Get c error")
 	}
@@ -203,9 +203,9 @@ func Test_new_cache_with_limiter(t *testing.T) {
 
 	var latest []byte
 	for i := 0; i < 4; i++ {
-		a, err := cache.Get(ctx, ForceLevelStrict)
+		a, err := cache.Get(ctx, ForceLevel__Strict)
 		if err != nil {
-			assert.FailNow(t, err.Error(), "cache.Get a error")
+			assert.FailNow(t, err.Error(), fmt.Sprintf("cache.Get a error @ time %d", i))
 		}
 		if latest != nil {
 			assert.NotEqual(t, a, latest)
@@ -213,7 +213,7 @@ func Test_new_cache_with_limiter(t *testing.T) {
 		latest = a
 	}
 	for i := 0; i < 4; i++ {
-		_, err := cache.Get(ctx, ForceLevelStrict)
+		_, err := cache.Get(ctx, ForceLevel__Strict)
 		assert.Equal(t, ErrLimiterNotAllow, err)
 	}
 }

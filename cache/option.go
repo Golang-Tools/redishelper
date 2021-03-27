@@ -9,25 +9,39 @@ type ForceLevelType uint16
 
 const (
 
-	//ForceLevelStrict 严格模式,无论如何只要报错和不满足组件要求就会终止,当更新函数得到的结果为空时不会放入缓存,而是刷新之前的过期时间
-	ForceLevelStrict ForceLevelType = iota
-	//ForceLevelConstraint 约束模式,组件自身失效会继续处理,当更新函数得到的结果为空时会删除缓存以便下次再执行更新操作
-	ForceLevelConstraint
-	//ForceLevelNoConstraint 无约束模式,无视组件处理,当更新函数得到的结果为空时不会放入缓存,当更新函数得到的结果为空时依然存入作为缓存
-	ForceLevelNoConstraint
+	//ForceLevel__Strict 严格模式,无论如何只要报错和不满足组件要求就会终止,当更新函数得到的结果为空时不会放入缓存,而是刷新之前的过期时间
+	ForceLevel__Strict ForceLevelType = iota
+	//ForceLevel__Constraint 约束模式,组件自身失效会继续处理,当更新函数得到的结果为空时会删除缓存以便下次再执行更新操作
+	ForceLevel__Constraint
+	//ForceLevel__NoConstraint 无约束模式,无视组件处理,当更新函数得到的结果为空时不会放入缓存,当更新函数得到的结果为空时依然存入作为缓存
+	ForceLevel__NoConstraint
 )
 
+//EmptyResCacheModeType 处理更新函数返回空值的模式
 type EmptyResCacheModeType uint16
+
+const (
+
+	//EmptyResCacheMode__IGNORE 当更新函数得到的结果为空时不会放入缓存,而是刷新之前的过期时间保持原有缓存
+	EmptyResCacheMode__IGNORE EmptyResCacheModeType = iota
+	//EmptyResCacheMode__DELETE 当更新函数得到的结果为空时会删除缓存以便下次再执行更新操作
+	EmptyResCacheMode__DELETE
+	//EmptyResCacheMode__SAVE 当更新函数得到的结果为空时依然存入作为缓存
+	EmptyResCacheMode__SAVE
+)
 
 //Options broker的配置
 type Options struct {
-	UpdatePeriod string         //使用自动更新,使用crontab格式
-	Lock         h.Canlock      //使用的锁
-	Limiter      h.CanBeLimiter //使用的限制器
+	UpdatePeriod      string                //使用自动更新,使用crontab格式
+	Lock              h.Canlock             //使用的锁
+	Limiter           h.CanBeLimiter        //使用的限制器
+	EmptyResCacheMode EmptyResCacheModeType //处理更新函数返回空值的模式
 }
 
 //Defaultopt 默认的可选配置
-var Defaultopt = Options{}
+var Defaultopt = Options{
+	EmptyResCacheMode: EmptyResCacheMode__IGNORE,
+}
 
 // Option configures how we set up the connection.
 type Option interface {
