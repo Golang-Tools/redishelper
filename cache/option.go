@@ -9,12 +9,12 @@ type ForceLevelType uint16
 
 const (
 
-	//ForceLevel__Strict 严格模式,无论如何只要报错和不满足组件要求就会终止,当更新函数得到的结果为空时不会放入缓存,而是刷新之前的过期时间
-	ForceLevel__Strict ForceLevelType = iota
-	//ForceLevel__Constraint 约束模式,组件自身失效会继续处理,当更新函数得到的结果为空时会删除缓存以便下次再执行更新操作
-	ForceLevel__Constraint
-	//ForceLevel__NoConstraint 无约束模式,无视组件处理,当更新函数得到的结果为空时不会放入缓存,当更新函数得到的结果为空时依然存入作为缓存
-	ForceLevel__NoConstraint
+	//ForceLevel__STRICT 严格模式,无论如何只要报错和不满足组件要求就会终止,当更新函数得到的结果为空时不会放入缓存,而是刷新之前的过期时间
+	ForceLevel__STRICT ForceLevelType = iota
+	//ForceLevel__CONSTRAINT 约束模式,组件自身失效会继续处理,当更新函数得到的结果为空时会删除缓存以便下次再执行更新操作
+	ForceLevel__CONSTRAINT
+	//ForceLevel__NOCONSTRAINT 无约束模式,无视组件处理,当更新函数得到的结果为空时不会放入缓存,当更新函数得到的结果为空时依然存入作为缓存
+	ForceLevel__NOCONSTRAINT
 )
 
 //EmptyResCacheModeType 处理更新函数返回空值的模式

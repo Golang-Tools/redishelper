@@ -60,7 +60,7 @@ func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error) {
 	var res []byte
 	var reserr error
-	if force == ForceLevel__NoConstraint {
+	if force == ForceLevel__NOCONSTRAINT {
 		res, reserr = c.updateFunc()
 	} else {
 		//锁限制重复执行
@@ -70,7 +70,7 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 				if err == lock.ErrAlreadyLocked {
 					return nil, err
 				}
-				if force == ForceLevel__Strict {
+				if force == ForceLevel__STRICT {
 					return nil, err
 				} else {
 					log.Error("分布式锁错误", log.Dict{"err": err.Error()})
@@ -81,11 +81,10 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 		if c.opt.Limiter != nil {
 			canflood, err := c.opt.Limiter.Flood(ctx, 1)
 			if err != nil {
-				if force == ForceLevel__Strict {
+				if force == ForceLevel__STRICT {
 					return nil, err
-				} else {
-					log.Error("限制器报错", log.Dict{"err": err.Error()})
 				}
+				log.Error("限制器报错", log.Dict{"err": err.Error()})
 			}
 			if !canflood {
 				return nil, ErrLimiterNotAllow
@@ -197,7 +196,7 @@ func (c *Cache) AutoUpdate() error {
 	c.c = cron.New()
 	c.c.AddFunc(c.opt.UpdatePeriod, func() {
 		ctx := context.Background()
-		_, err := c.Update(ctx, ForceLevel__Strict)
+		_, err := c.Update(ctx, ForceLevel__STRICT)
 		if err != nil {
 
 		}
