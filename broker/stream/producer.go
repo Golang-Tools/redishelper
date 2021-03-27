@@ -260,7 +260,7 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 //@returns *event.Event 发送出去的消息对象
 func (p *Producer) PubEvent(ctx context.Context, payload interface{}) (*event.Event, error) {
 	msg := event.Event{
-		EventTime: time.Now().Unix(),
+		EventTime: time.Now().UnixNano(),
 		Payload:   payload,
 	}
 	if p.opt.ClientID != 0 {

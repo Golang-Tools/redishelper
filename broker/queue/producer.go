@@ -103,7 +103,7 @@ func (p *Producer) Publish(ctx context.Context, payload interface{}) error {
 func (p *Producer) PubEvent(ctx context.Context, payload interface{}) (*event.Event, error) {
 
 	msg := event.Event{
-		EventTime: time.Now().Unix(),
+		EventTime: time.Now().UnixNano(),
 		Payload:   payload,
 	}
 	if p.opt.ClientID != 0 {

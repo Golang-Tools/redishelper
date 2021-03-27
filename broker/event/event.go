@@ -12,9 +12,9 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 //Event 消息对象
 type Event struct {
-	Topic     string      `json:"topic,omitempty" msgpack:"topic"`
+	Topic     string      `json:"topic,omitempty" msgpack:"topic,omitempty"`
 	Sender    string      `json:"sender,omitempty" msgpack:"sender,omitempty"`
-	EventTime int64       `json:"event_time,omitempty" msgpack:"event_time,omitempty"`
+	EventTime int64       `json:"event_time,omitempty" msgpack:"event_time,omitempty"` //毫秒级时间戳
 	EventID   string      `json:"event_id,omitempty" msgpack:"event_id,omitempty"`
 	Payload   interface{} `json:"payload" msgpack:"payload"`
 }

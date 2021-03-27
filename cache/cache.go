@@ -54,30 +54,61 @@ func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 // 写操作
 
 //Update 将结果更新到缓存
-//每次更新会判断是否有变化,没有变化如果设置有MAXTTL则只刷新过期时间,有变化则会更新变化并刷新过期时间
-func (c *Cache) Update(ctx context.Context) ([]byte, error) {
-	res, err := c.updateFunc()
-	if err != nil {
-		return nil, err
+// 每次更新会判断是否有变化,没有变化如果key设置有MAXTTL则只刷新过期时间,有变化则会更新变化并刷新过期时间
+// 如果设置有锁则使用锁限制注册函数执行
+//@param force ForceLevelType 强制模式
+func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error) {
+	var res []byte
+	var reserr error
+	if force == ForceLevelNoConstraint {
+		res, reserr = c.updateFunc()
+	} else {
+		//锁限制重复执行
+		if c.opt.Lock != nil {
+			err := c.opt.Lock.Lock(ctx)
+			if err != nil {
+				if err == lock.ErrAlreadyLocked {
+					return nil, err
+				}
+				if force == ForceLevelStrict {
+					return nil, err
+				} else {
+					log.Error("分布式锁错误", log.Dict{"err": err.Error()})
+				}
+			}
+		}
+		//限制器限制执行防止被击穿
+		if c.opt.Limiter != nil {
+			canflood, err := c.opt.Limiter.Flood(ctx, 1)
+			if err != nil {
+				if force == ForceLevelStrict {
+					return nil, err
+				} else {
+					log.Error("限制器报错", log.Dict{"err": err.Error()})
+				}
+			}
+			if !canflood {
+				return nil, ErrLimiterNotAllow
+			}
+			res, reserr = c.updateFunc()
+		} else {
+			res, reserr = c.updateFunc()
+		}
 	}
 
+	if reserr != nil {
+		return nil, reserr
+	}
+	//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
 	go func(ctx context.Context, res []byte) {
-		err := c.opt.Lock.Lock(ctx)
-		if err != nil {
-			if err == lock.ErrAlreadyLocked {
-				log.Debug("缓存已被锁定")
-				return
-			}
-			log.Debug("获得分布式锁错误", log.Dict{"err": err.Error()})
-			c.opt.Lock.Unlock(ctx)
-			return
+		if c.opt.Lock != nil {
+			defer c.opt.Lock.Unlock(ctx)
 		}
-		defer c.opt.Lock.Unlock(ctx)
 		h := md5.New()
 		h.Write(res)
 		resMd5 := hex.EncodeToString(h.Sum(nil))
 		if c.latestHash == "" {
-			_, err = c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
 			if err != nil {
 				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
 				return
@@ -87,7 +118,7 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 			return
 		}
 		if c.latestHash != resMd5 {
-			_, err = c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
 			if err != nil {
 				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
 				return
@@ -98,7 +129,7 @@ func (c *Cache) Update(ctx context.Context) ([]byte, error) {
 		}
 		if c.Opt.MaxTTL != 0 {
 			log.Debug("结果未更新,刷新过期时间")
-			_, err = c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
+			_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
 			if err != nil {
 				log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
 				return
@@ -121,7 +152,7 @@ func (c *Cache) AutoUpdate() error {
 	c.c = cron.New()
 	c.c.AddFunc(c.opt.UpdatePeriod, func() {
 		ctx := context.Background()
-		_, err := c.Update(ctx)
+		_, err := c.Update(ctx, ForceLevelStrict)
 		if err != nil {
 
 		}
@@ -145,10 +176,11 @@ func (c *Cache) StopAutoUpdate() error {
 //Get 获取数据
 //如果缓存中有就从缓存中获取,如果没有则直接从注册的缓存函数中获取,然后将结果更新到缓存
 //如果cache的key有设置MaxTTL则在获取到缓存的数据是会刷新key的过期时间
-func (c *Cache) Get(ctx context.Context) ([]byte, error) {
+//@param force bool 是否强制获取数据
+func (c *Cache) Get(ctx context.Context, force ForceLevelType) ([]byte, error) {
 	ress, err := c.Client.Get(ctx, c.Key).Result()
 	if err != nil {
-		res, err1 := c.Update(ctx)
+		res, err1 := c.Update(ctx, force)
 		if err1 != nil {
 			log.Debug("从函数获取失败")
 			return nil, err1
@@ -158,14 +190,9 @@ func (c *Cache) Get(ctx context.Context) ([]byte, error) {
 			return res, nil
 		}
 		log.Debug("从函数获取成功")
-		return res, err
+		return res, nil
 	}
 	log.Debug("从缓存成功获取")
-	err = c.RefreshTTL(ctx)
-	if err != nil && err != clientkey.ErrKeyNotSetMaxTLL {
-		log.Debug("未刷新缓存")
-		return []byte(ress), err
-	}
-	log.Debug("刷新缓存成功")
+	go c.RefreshTTL(ctx)
 	return []byte(ress), nil
 }
