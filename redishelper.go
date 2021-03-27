@@ -18,17 +18,21 @@ type CanBeGenerator interface {
 	Next(context.Context) (int64, error)
 }
 
-//CanBeSet 可以被看作时Set的结构对象
-type CanBeSet interface {
+type CanBeDisctinctCounter interface {
 	CanBeCount
 	Add(context.Context, ...interface{}) error
 	AddM(context.Context, ...interface{}) error
+	Union(context.Context, *clientkey.ClientKey, ...CanBeDisctinctCounter) (CanBeDisctinctCounter, error)
+}
+
+//CanBeSet 可以被看作时Set的结构对象
+type CanBeSet interface {
+	CanBeDisctinctCounter
 	Remove(context.Context, ...interface{}) error
 	RemoveM(context.Context, ...interface{}) error
 	Contained(context.Context, interface{}) (bool, error)
 	ToArray(context.Context) ([]interface{}, error)
 	Intersection(context.Context, *clientkey.ClientKey, ...CanBeSet) (CanBeSet, error)
-	Union(context.Context, *clientkey.ClientKey, ...CanBeSet) (CanBeSet, error)
 	Except(context.Context, *clientkey.ClientKey, CanBeSet) (CanBeSet, error)
 	Xor(context.Context, *clientkey.ClientKey, CanBeSet) (CanBeSet, error)
 }

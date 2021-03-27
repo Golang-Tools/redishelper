@@ -53,6 +53,16 @@ func (c *HyperCount) Len(ctx context.Context) (int64, error) {
 	return c.Client.PFCount(ctx, c.Key).Result()
 }
 
+//Reset 重置当前hypercount
+//@params ctx context.Context 上下文信息,用于控制请求的结束
+func (c *HyperCount) Reset(ctx context.Context) error {
+	err := c.Delete(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 //Union 对应set的求并集操作
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params targetbmkey *clientkey.ClientKey 目标key对象
