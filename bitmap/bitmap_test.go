@@ -15,7 +15,7 @@ import (
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*clientkey.ClientKey, context.Context) {
+func NewBackground(t *testing.T, keyname string, opts ...clientkey.Option) (*clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
@@ -27,16 +27,13 @@ func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*client
 	if err != nil {
 		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	key, err := clientkey.New(cli, keyname, opt)
-	if err != nil {
-		assert.FailNow(t, err.Error(), "create key error")
-	}
+	key := clientkey.New(cli, keyname, opts...)
 	fmt.Println("prepare task done")
 	return key, ctx
 }
 
 func Test_bitmap_without_ttl(t *testing.T) {
-	key, ctx := NewBackground(t, "test_bitmap", nil)
+	key, ctx := NewBackground(t, "test_bitmap")
 	defer key.Client.Close()
 	//开始测试
 	bm := New(key)
@@ -156,9 +153,9 @@ func Test_bitmap_without_ttl(t *testing.T) {
 }
 
 func Test_bitmap_op(t *testing.T) {
-	key1, ctx := NewBackground(t, "test_bitmap1", nil)
-	key2, ctx := NewBackground(t, "test_bitmap2", nil)
-	key3, ctx := NewBackground(t, "test_bitmap3", nil)
+	key1, ctx := NewBackground(t, "test_bitmap1")
+	key2, ctx := NewBackground(t, "test_bitmap2")
+	key3, ctx := NewBackground(t, "test_bitmap3")
 	defer key1.Client.Close()
 	//开始测试
 	bm1 := New(key1)
@@ -215,9 +212,7 @@ func Test_bitmap_op(t *testing.T) {
 }
 
 func Test_bitmap_TTL(t *testing.T) {
-	key, ctx := NewBackground(t, "test_bitmap", &clientkey.Option{
-		MaxTTL: 2 * time.Second,
-	})
+	key, ctx := NewBackground(t, "test_bitmap", clientkey.WithMaxTTL(2*time.Second))
 	defer key.Client.Close()
 
 	bm := New(key)

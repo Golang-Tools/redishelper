@@ -4,11 +4,11 @@ import (
 	"errors"
 )
 
-//ErrClientCannotBePipeliner client不能是pipeliner
-var ErrClientCannotBePipeliner = errors.New("client不能是pipeliner")
-
 //ErrKeyNotSetMaxTLL key没有设置最大tll
 var ErrKeyNotSetMaxTLL = errors.New("key没有设置最大tll")
+
+//ErrKeyNotSetExpire key没有设置过期
+var ErrKeyNotSetExpire = errors.New("key没有设置过期")
 
 //ErrKeyNotExist key不存在
 var ErrKeyNotExist = errors.New("key不存在")

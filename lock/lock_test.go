@@ -16,7 +16,7 @@ import (
 //TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*clientkey.ClientKey, context.Context) {
+func NewBackground(t *testing.T, keyname string, opts ...clientkey.Option) (*clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
@@ -28,17 +28,14 @@ func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*client
 	if err != nil {
 		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	key, err := clientkey.New(cli, keyname, opt)
-	if err != nil {
-		assert.FailNow(t, err.Error(), "create key error")
-	}
+	key := clientkey.New(cli, keyname, opts...)
 	fmt.Println("prepare task done")
 	return key, ctx
 }
 
 func Test_new_Lock_err(t *testing.T) {
 	// 准备工作
-	key, _ := NewBackground(t, "test_lock", nil)
+	key, _ := NewBackground(t, "test_lock")
 	defer key.Client.Close()
 	//开始测试
 	_, err := New(key, "client01", 10*time.Second, 10*time.Second)
@@ -53,7 +50,7 @@ func Test_new_Lock_err(t *testing.T) {
 
 func Test_lock_Lock(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_lock", nil)
+	key, ctx := NewBackground(t, "test_lock")
 	defer key.Client.Close()
 	//开始测试
 
@@ -96,7 +93,7 @@ func Test_lock_Lock(t *testing.T) {
 
 func Test_lock_waitLock(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_lock", nil)
+	key, ctx := NewBackground(t, "test_lock")
 	defer key.Client.Close()
 	//开始测试
 

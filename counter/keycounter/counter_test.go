@@ -1,4 +1,4 @@
-package counter
+package keycounter
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*clientkey.ClientKey, context.Context) {
+func NewBackground(t *testing.T, keyname string, opts ...clientkey.Option) (*clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
@@ -26,19 +26,14 @@ func NewBackground(t *testing.T, keyname string, opt *clientkey.Option) (*client
 	if err != nil {
 		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	key, err := clientkey.New(cli, keyname, opt)
-	if err != nil {
-		assert.FailNow(t, err.Error(), "create key error")
-	}
+	key := clientkey.New(cli, keyname, opts...)
 	fmt.Println("prepare task done")
 	return key, ctx
 }
 
 func Test_counter_TTL(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_bitmap", &clientkey.Option{
-		MaxTTL: 2 * time.Second,
-	})
+	key, ctx := NewBackground(t, "test_bitmap", clientkey.WithMaxTTL(2*time.Second))
 	defer key.Client.Close()
 
 	c := New(key)
@@ -63,7 +58,7 @@ func Test_counter_TTL(t *testing.T) {
 	assert.LessOrEqual(t, int64(ttl), int64(1*time.Second))
 	assert.LessOrEqual(t, int64(0*time.Second), int64(ttl))
 	//NextM可以刷新key
-	res, err = c.NextM(ctx, 3)
+	res, err = c.NextN(ctx, 3)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "counter nextM error")
 	}
@@ -88,7 +83,7 @@ func Test_counter_TTL(t *testing.T) {
 
 func Test_counter_counter(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_counter", nil)
+	key, ctx := NewBackground(t, "test_counter")
 	defer key.Client.Close()
 	c := New(key)
 
@@ -99,7 +94,7 @@ func Test_counter_counter(t *testing.T) {
 	}
 	assert.Equal(t, int64(1), res)
 	//测试 nextM
-	res, err = c.NextM(ctx, 4)
+	res, err = c.NextN(ctx, 4)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "counter.CountM error")
 	}

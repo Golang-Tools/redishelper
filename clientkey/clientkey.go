@@ -6,7 +6,6 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/exception"
 	"github.com/go-redis/redis/v8"
 	"github.com/robfig/cron/v3"
 )
@@ -14,57 +13,29 @@ import (
 //ClientKey 描述任意一种的单个key对象
 type ClientKey struct {
 	Key               string
-	Opt               *Option
+	Opt               Options
 	autorefreshtaskid cron.EntryID //定时任务id
 	Client            redis.UniversalClient
-}
-
-//Option 设置key行为的选项
-//@attribute MaxTTL time.Duration 为0则不设置过期
-//@attribute AutoRefresh string 需要为crontab格式的字符串,否则不会自动定时刷新
-type Option struct {
-	MaxTTL              time.Duration
-	AutoRefreshInterval string
-	TaskCron            *cron.Cron
 }
 
 //New 创建一个新的key对象
 //@params client redis.UniversalClient 客户端对象
 //@params key string bitmap使用的key
 //@params opts ...*KeyOption key的选项
-func New(client redis.UniversalClient, key string, opts ...*Option) (*ClientKey, error) {
-	// _, ok := client.(redis.Pipeliner)
-	// if ok {
-	// 	return nil, ErrClientCannotBePipeliner
-	// }
+func New(client redis.UniversalClient, key string, opts ...Option) *ClientKey {
 	k := new(ClientKey)
 	k.Client = client
 	k.Key = key
-	switch len(opts) {
-	case 0:
-		{
-			k.Opt = &Option{}
-			return k, nil
-		}
-	case 1:
-		{
-			opt := opts[0]
-			if opt == nil {
-				k.Opt = &Option{}
-				return k, nil
-			}
-			if opt.TaskCron == nil && opt.AutoRefreshInterval != "" {
-				opt.TaskCron = cron.New()
-				opt.TaskCron.Start()
-			}
-			k.Opt = opt
-			return k, nil
-		}
-	default:
-		{
-			return nil, exception.ErrParamOptsLengthMustLessThan2
-		}
+	defaultopt := Options{}
+	k.Opt = defaultopt
+	for _, opt := range opts {
+		opt.Apply(&k.Opt)
 	}
+	if k.Opt.TaskCron == nil && k.Opt.AutoRefreshInterval != "" {
+		k.Opt.TaskCron = cron.New()
+		k.Opt.TaskCron.Start()
+	}
+	return k
 }
 
 //Exists 查看key是否存在
@@ -99,6 +70,9 @@ func (k *ClientKey) TTL(ctx context.Context) (time.Duration, error) {
 	res, err := k.Client.TTL(ctx, k.Key).Result()
 	if err != nil {
 		return 0, err
+	}
+	if int64(res) == -1 {
+		return 0, ErrKeyNotSetExpire
 	}
 	if int64(res) == -2 {
 		return 0, ErrKeyNotExist
