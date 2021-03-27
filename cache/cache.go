@@ -99,45 +99,49 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 	if reserr != nil {
 		return nil, reserr
 	}
-	//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
-	go func(ctx context.Context, res []byte) {
-		if c.opt.Lock != nil {
-			defer c.opt.Lock.Unlock(ctx)
-		}
-		h := md5.New()
-		h.Write(res)
-		resMd5 := hex.EncodeToString(h.Sum(nil))
-		if c.latestHash == "" {
-			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
-			if err != nil {
-				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
+	//只有有数据获得才会缓存
+	if res != nil && len(res) > 0 {
+		//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
+		go func(ctx context.Context, res []byte) {
+			if c.opt.Lock != nil {
+				defer c.opt.Lock.Unlock(ctx)
+			}
+			h := md5.New()
+			h.Write(res)
+			resMd5 := hex.EncodeToString(h.Sum(nil))
+			if c.latestHash == "" {
+				_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+				if err != nil {
+					log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
+					return
+				}
+				log.Debug("设置缓存成功")
+				c.latestHash = resMd5
 				return
 			}
-			log.Debug("设置缓存成功")
-			c.latestHash = resMd5
+			if c.latestHash != resMd5 {
+				_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+				if err != nil {
+					log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
+					return
+				}
+				log.Debug("设置缓存成功")
+				c.latestHash = resMd5
+				return
+			}
+			if c.Opt.MaxTTL != 0 {
+				log.Debug("结果未更新,刷新过期时间")
+				_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
+				if err != nil {
+					log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
+					return
+				}
+				log.Debug("设置过期时间成功")
+			}
 			return
-		}
-		if c.latestHash != resMd5 {
-			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
-			if err != nil {
-				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
-				return
-			}
-			log.Debug("设置缓存成功")
-			c.latestHash = resMd5
-			return
-		}
-		if c.Opt.MaxTTL != 0 {
-			log.Debug("结果未更新,刷新过期时间")
-			_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
-			if err != nil {
-				log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
-				return
-			}
-			log.Debug("设置过期时间成功")
-		}
-		return
-	}(ctx, res)
+		}(ctx, res)
+	}
+
 	return res, nil
 }
 

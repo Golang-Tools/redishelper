@@ -4,17 +4,20 @@ import (
 	h "github.com/Golang-Tools/redishelper"
 )
 
+//ForceLevelType 强制执行类型枚举
 type ForceLevelType uint16
 
 const (
 
-	//ForceLevelStrict 严格模式,无论如何只要报错和不满足组件要求就会终止
+	//ForceLevelStrict 严格模式,无论如何只要报错和不满足组件要求就会终止,当更新函数得到的结果为空时不会放入缓存,而是刷新之前的过期时间
 	ForceLevelStrict ForceLevelType = iota
-	//ForceLevelConstraint 约束模式,组件自身失效则继续处理
+	//ForceLevelConstraint 约束模式,组件自身失效会继续处理,当更新函数得到的结果为空时会删除缓存以便下次再执行更新操作
 	ForceLevelConstraint
-	//ForceLevelNoConstraint 无约束模式,无视组件处理
+	//ForceLevelNoConstraint 无约束模式,无视组件处理,当更新函数得到的结果为空时不会放入缓存,当更新函数得到的结果为空时依然存入作为缓存
 	ForceLevelNoConstraint
 )
+
+type EmptyResCacheModeType uint16
 
 //Options broker的配置
 type Options struct {
