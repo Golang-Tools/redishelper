@@ -2,10 +2,34 @@ package redishelper
 
 import (
 	"context"
+	"time"
 
 	"github.com/Golang-Tools/redishelper/broker/event"
 	"github.com/Golang-Tools/redishelper/clientkey"
 )
+
+type CanHanddlerLifeCycle interface {
+	TTL(context.Context) (time.Duration, error)
+	Delete(context.Context) error
+	RefreshTTL(context.Context) error
+	AutoRefresh() error
+	StopAutoRefresh(bool) error
+}
+
+type CanBeClientKey interface {
+	Exists(context.Context) (bool, error)
+	Type(context.Context) (string, error)
+	CanHanddlerLifeCycle
+}
+
+type CanBeClientKeyBatch interface {
+	AllExists(context.Context) (bool, error)
+	AnyExists(ctx context.Context) (bool, error)
+	Types(ctx context.Context) (map[string]string, error)
+	HasSameType(ctx context.Context) (bool, string, error)
+	ToArray()
+	CanHanddlerLifeCycle
+}
 
 //CanBeCount 可以被计数
 type CanBeCount interface {
