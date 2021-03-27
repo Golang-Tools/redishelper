@@ -72,9 +72,8 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 				}
 				if force == ForceLevel__STRICT {
 					return nil, err
-				} else {
-					log.Error("分布式锁错误", log.Dict{"err": err.Error()})
 				}
+				log.Error("分布式锁错误", log.Dict{"err": err.Error()})
 			}
 		}
 		//限制器限制执行防止被击穿
