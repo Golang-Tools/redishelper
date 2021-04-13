@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"time"
+
 	h "github.com/Golang-Tools/redishelper"
 )
 
@@ -32,15 +34,21 @@ const (
 
 //Options broker的配置
 type Options struct {
-	UpdatePeriod      string                //使用自动更新,使用crontab格式
-	Lock              h.Canlock             //使用的锁
-	Limiter           h.CanBeLimiter        //使用的限制器
-	EmptyResCacheMode EmptyResCacheModeType //处理更新函数返回空值的模式
+	UpdatePeriod                string                //使用自动更新,使用crontab格式
+	QueryAutoUpdateCacheTimeout time.Duration         //自动更新时写入缓存的过期时间
+	Lock                        h.Canlock             //使用的锁
+	QueryLockTimeout            time.Duration         //请求锁的超时时间
+	Limiter                     h.CanBeLimiter        //使用的限制器
+	QueryLimiterTimeout         time.Duration         //请求限流器的超时时间
+	EmptyResCacheMode           EmptyResCacheModeType //处理更新函数返回空值的模式
 }
 
 //Defaultopt 默认的可选配置
 var Defaultopt = Options{
-	EmptyResCacheMode: EmptyResCacheMode__IGNORE,
+	EmptyResCacheMode:           EmptyResCacheMode__IGNORE,
+	QueryAutoUpdateCacheTimeout: 300 * time.Millisecond,
+	QueryLockTimeout:            300 * time.Millisecond,
+	QueryLimiterTimeout:         300 * time.Millisecond,
 }
 
 // Option configures how we set up the connection.
@@ -76,9 +84,30 @@ func WithLock(lock h.Canlock) Option {
 	})
 }
 
+//WithLockTimeout 设置请求分布式锁的过期时间,默认300毫秒
+func WithLockTimeout(timeout time.Duration) Option {
+	return newFuncOption(func(o *Options) {
+		o.QueryLockTimeout = timeout
+	})
+}
+
 //WithLimiter 设置分布式限制器,限制器的作用是设置一段时间内的最大更新次数
 func WithLimiter(limiter h.CanBeLimiter) Option {
 	return newFuncOption(func(o *Options) {
 		o.Limiter = limiter
+	})
+}
+
+//WithLimiterTimeout 设置请求限流器的过期时间,默认300毫秒
+func WithLimiterTimeout(timeout time.Duration) Option {
+	return newFuncOption(func(o *Options) {
+		o.QueryLimiterTimeout = timeout
+	})
+}
+
+//WithQueryAutoUpdateCacheTimeout 设置自动更新缓存内容时写入缓存的过期时间,默认300毫秒
+func WithQueryAutoUpdateCacheTimeout(timeout time.Duration) Option {
+	return newFuncOption(func(o *Options) {
+		o.QueryAutoUpdateCacheTimeout = timeout
 	})
 }

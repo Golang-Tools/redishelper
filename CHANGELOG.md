@@ -1,3 +1,16 @@
+# 0.0.2
+
+## 修正实现
+
++ cache现在修正了缓存的流程,更新操作被拆分为了主动更新(`ActiveUpdate()`)和懒更新(`lazyUpdate(ctx context.Context, force ForceLevelType)`)两种模式,`Get`方法会调用懒更新接口,自动更新则会调用主动更新接口,主动更新接口也可以被用于监听消息作为回调函数
+
+## 新增实现
+
++ 新增专用接口`github.com/Golang-Tools/redishelper/keyspace_notifications`用于监听redis的键的行为通知
++ 新增ext模块用于对一些常用扩展的支持,目前支持的有:
+    + [redis-cell](https://github.com/brandur/redis-cell)以及一个以它实现的限流器
+    + [RedisBloom](https://github.com/RedisBloom/RedisBloom)
+
 # 0.0.1
 
 初始化了项目,新增了如下结构:

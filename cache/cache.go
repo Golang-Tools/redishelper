@@ -57,27 +57,16 @@ func (c *Cache) RegistUpdateFunc(fn Cachefunc) error {
 // 每次更新会判断是否有变化,没有变化如果key设置有MAXTTL则只刷新过期时间,有变化则会更新变化并刷新过期时间
 // 如果设置有锁则使用锁限制注册函数执行
 //@param force ForceLevelType 强制模式
-func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error) {
+func (c *Cache) update(force ForceLevelType) ([]byte, error) {
 	var res []byte
 	var reserr error
 	if force == ForceLevel__NOCONSTRAINT {
 		res, reserr = c.updateFunc()
 	} else {
-		//锁限制重复执行
-		if c.opt.Lock != nil {
-			err := c.opt.Lock.Lock(ctx)
-			if err != nil {
-				if err == lock.ErrAlreadyLocked {
-					return nil, err
-				}
-				if force == ForceLevel__STRICT {
-					return nil, err
-				}
-				log.Error("分布式锁错误", log.Dict{"err": err.Error()})
-			}
-		}
 		//限制器限制执行防止被击穿
 		if c.opt.Limiter != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), c.opt.QueryAutoUpdateCacheTimeout)
+			defer cancel()
 			canflood, err := c.opt.Limiter.Flood(ctx, 1)
 			if err != nil {
 				if force == ForceLevel__STRICT {
@@ -93,98 +82,93 @@ func (c *Cache) Update(ctx context.Context, force ForceLevelType) ([]byte, error
 			res, reserr = c.updateFunc()
 		}
 	}
+	return res, reserr
+}
 
-	if reserr != nil {
-		return nil, reserr
-	}
-	callback := func(ctx context.Context, res []byte) {
-		if c.opt.Lock != nil {
-			defer c.opt.Lock.Unlock(ctx)
-		}
-		h := md5.New()
-		h.Write(res)
-		resMd5 := hex.EncodeToString(h.Sum(nil))
-		if c.latestHash == "" {
-			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
-			if err != nil {
-				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
-				return
-			}
+//saveToCache 将数据存至缓存并刷新过期时间
+func (c *Cache) saveToCache(ctx context.Context, res []byte) {
+	h := md5.New()
+	h.Write(res)
+	resMd5 := hex.EncodeToString(h.Sum(nil))
+	//结果写入缓存
+	if c.latestHash == "" || c.latestHash != resMd5 {
+		_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
+		if err != nil {
+			log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
+		} else {
 			log.Debug("设置缓存成功")
 			c.latestHash = resMd5
-			return
 		}
-		if c.latestHash != resMd5 {
-			_, err := c.Client.Set(ctx, c.Key, res, c.Opt.MaxTTL).Result()
-			if err != nil {
-				log.Debug("设置缓存报错", log.Dict{"err": err.Error()})
-				return
-			}
-			log.Debug("设置缓存成功")
-			c.latestHash = resMd5
-			return
-		}
-		if c.Opt.MaxTTL != 0 {
-			log.Debug("结果未更新,刷新过期时间")
-			_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
-			if err != nil {
-				log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
-				return
-			}
+	} else {
+		//结果未更新
+		log.Debug("结果未更新,刷新过期时间")
+		err := c.RefreshTTL(ctx)
+		if err != nil {
+			log.Warn("设置过期时间报错", log.Dict{"err": err.Error()})
+		} else {
 			log.Debug("设置过期时间成功")
 		}
+	}
+	return
+}
+
+//ActiveUpdate 主动更新函数,可以被用作定时主动更新,也可以通过监听外部信号来实现更新
+func (c *Cache) ActiveUpdate() {
+	if c.opt.Lock != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), c.opt.QueryLockTimeout)
+		defer cancel()
+		err := c.opt.Lock.Lock(ctx)
+		if err != nil {
+			if err == lock.ErrAlreadyLocked {
+				log.Info("分布式锁已经锁定,不执行")
+				return
+			} else {
+				log.Error("分布式锁错误", log.Dict{"err": err.Error()})
+			}
+		}
+		defer c.opt.Lock.Unlock(ctx)
+	}
+	res, err := c.update(ForceLevel__STRICT)
+	if err != nil {
+		log.Error("执行更新函数失败", log.Dict{"err": err.Error()})
 		return
 	}
-
+	ctx1, cancel1 := context.WithTimeout(context.Background(), c.opt.QueryAutoUpdateCacheTimeout)
+	defer cancel1()
 	if res != nil && len(res) > 0 {
-		//获取的数据不为空
-		//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
-		go callback(ctx, res)
+		c.saveToCache(ctx1, res)
 	} else {
 		//获取的数据为空
 		switch c.opt.EmptyResCacheMode {
 		case EmptyResCacheMode__DELETE:
 			{
-				go func() {
-					if c.Opt.MaxTTL != 0 {
-						log.Debug("删除原有缓存")
-						_, err := c.Client.Del(ctx, c.Key).Result()
-						if err != nil {
-							log.Debug("删除原有缓存报错", log.Dict{"err": err.Error()})
-							return
-						}
-						log.Debug("删除原有缓存")
-					}
-				}()
-
+				log.Debug("删除原有缓存")
+				err := c.Delete(ctx1)
+				if err != nil {
+					log.Debug("删除原有缓存报错", log.Dict{"err": err.Error()})
+					return
+				}
+				log.Debug("删除原有缓存")
 			}
 		case EmptyResCacheMode__IGNORE:
 			{
-				go func() {
-					if c.Opt.MaxTTL != 0 {
-						log.Debug("结果未更新,刷新过期时间")
-						_, err := c.Client.Expire(ctx, c.Key, c.Opt.MaxTTL).Result()
-						if err != nil {
-							log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
-							return
-						}
-						log.Debug("设置过期时间成功")
-					}
-				}()
-
+				log.Debug("结果未更新,刷新过期时间")
+				err := c.RefreshTTL(ctx1)
+				if err != nil {
+					log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
+					return
+				}
+				log.Debug("设置过期时间成功")
 			}
 		case EmptyResCacheMode__SAVE:
 			{
-				go callback(ctx, res)
+				c.saveToCache(ctx1, res)
 			}
 		}
-
 	}
-
-	return res, nil
 }
 
-//AutoUpdate 自动更新缓存
+//AutoUpdate 自动更新缓存,自动更新缓存内容也受限流器影响,同时锁会用于限制更新程序的执行
 func (c *Cache) AutoUpdate() error {
 	if c.opt.UpdatePeriod == "" {
 		return ErrAutoUpdateNeedUpdatePeriod
@@ -193,13 +177,7 @@ func (c *Cache) AutoUpdate() error {
 		return ErrAutoUpdateAlreadyStarted
 	}
 	c.c = cron.New()
-	c.c.AddFunc(c.opt.UpdatePeriod, func() {
-		ctx := context.Background()
-		_, err := c.Update(ctx, ForceLevel__STRICT)
-		if err != nil {
-
-		}
-	})
+	c.c.AddFunc(c.opt.UpdatePeriod, c.ActiveUpdate)
 	c.c.Start()
 	return nil
 }
@@ -214,6 +192,75 @@ func (c *Cache) StopAutoUpdate() error {
 	return nil
 }
 
+//lazyUpdate 被动加载新数据
+func (c *Cache) lazyUpdate(ctx context.Context, force ForceLevelType) ([]byte, error) {
+	res, reserr := c.update(force)
+	if reserr != nil {
+		return nil, reserr
+	}
+	//
+	callback := func(ctx context.Context, res []byte) {
+		//锁限制重复写入缓存
+		if c.opt.Lock != nil {
+			ctx1, cancel := context.WithTimeout(context.Background(), c.opt.QueryLockTimeout)
+			defer cancel()
+			err := c.opt.Lock.Lock(ctx1)
+			if err != nil {
+				if err == lock.ErrAlreadyLocked {
+					log.Error("分布式锁已经锁定")
+					return
+				} else {
+					log.Error("分布式锁错误", log.Dict{"err": err.Error()})
+				}
+			}
+			defer c.opt.Lock.Unlock(ctx1)
+		}
+		c.saveToCache(ctx, res)
+	}
+
+	if res != nil && len(res) > 0 {
+		//获取的数据不为空
+		//更新数据到缓存,如果有设置锁,只有缓存到redis后才会释放锁
+		go callback(ctx, res)
+	} else {
+		//获取的数据为空
+		switch c.opt.EmptyResCacheMode {
+		case EmptyResCacheMode__DELETE:
+			{
+				go func() {
+					log.Debug("删除原有缓存")
+					err := c.Delete(ctx)
+					if err != nil {
+						log.Debug("删除原有缓存报错", log.Dict{"err": err.Error()})
+						return
+					}
+					log.Debug("删除原有缓存")
+				}()
+
+			}
+		case EmptyResCacheMode__IGNORE:
+			{
+				go func() {
+					log.Debug("结果未更新,刷新过期时间")
+					err := c.RefreshTTL(ctx)
+					if err != nil {
+						log.Debug("设置过期时间报错", log.Dict{"err": err.Error()})
+						return
+					}
+					log.Debug("设置过期时间成功")
+				}()
+
+			}
+		case EmptyResCacheMode__SAVE:
+			{
+				go callback(ctx, res)
+			}
+		}
+
+	}
+	return res, nil
+}
+
 // 读操作
 
 //Get 获取数据
@@ -223,7 +270,7 @@ func (c *Cache) StopAutoUpdate() error {
 func (c *Cache) Get(ctx context.Context, force ForceLevelType) ([]byte, error) {
 	ress, err := c.Client.Get(ctx, c.Key).Result()
 	if err != nil {
-		res, err1 := c.Update(ctx, force)
+		res, err1 := c.lazyUpdate(ctx, force)
 		if err1 != nil {
 			log.Debug("从函数获取失败")
 			return nil, err1
