@@ -7,9 +7,8 @@
 ## 新增实现
 
 + 新增专用接口`github.com/Golang-Tools/redishelper/keyspace_notifications`用于监听redis的键的行为通知
-+ 新增ext模块用于对一些常用扩展的支持,目前支持的有:
-    + [redis-cell](https://github.com/brandur/redis-cell)以及一个以它实现的限流器
-    + [RedisBloom](https://github.com/RedisBloom/RedisBloom)
++ 新增新增`github.com/Golang-Tools/redishelper/ext`模块用于实现检查已加载模块的功能
++ 新增`github.com/Golang-Tools/redishelper/ext/redis-cell`模块用于对[redis-cell](https://github.com/brandur/redis-cell)做支持,同时用它实现了一个限流器
 
 # 0.0.1
 

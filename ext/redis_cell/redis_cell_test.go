@@ -1,10 +1,11 @@
-package ext
+package redis_cell
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
+	"github.com/Golang-Tools/redishelper/clientkey"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,7 +13,7 @@ import (
 // TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func NewBackground(t *testing.T, URL string) (redis.UniversalClient, context.Context) {
+func NewBackground(t *testing.T, URL string, keyname string, opts ...clientkey.Option) (*clientkey.ClientKey, context.Context) {
 	options, err := redis.ParseURL(URL)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
@@ -20,25 +21,30 @@ func NewBackground(t *testing.T, URL string) (redis.UniversalClient, context.Con
 	cli := redis.NewClient(options)
 	ctx := context.Background()
 	cli.FlushDB(ctx).Result()
+	key := clientkey.New(cli, keyname, opts...)
 	// _, err = cli.FlushDB(ctx).Result()
 	// if err != nil {
 	// 	assert.FailNow(t, err.Error(), "FlushDB error")
 	// }
 	fmt.Println("prepare task done")
-	return cli, ctx
+	return key, ctx
 }
 
 //Test_KeyspaceNotification_Sync 测试同步配置
-func Test_Module_List(t *testing.T) {
-	cli, ctx := NewBackground(t, TEST_REDIS_URL)
-	defer cli.Close()
-	ms, err := ListModule(cli, ctx)
+func Test_ClThrottle(t *testing.T) {
+	key, ctx := NewBackground(t, TEST_REDIS_URL, "test_redis-cell")
+	defer key.Client.Close()
+	cell, err := New(key)
 	if err != nil {
-		assert.FailNow(t, err.Error(), "ListModule error")
+		assert.FailNow(t, err.Error(), "New error")
 	}
-	m := ms[0]
-	assert.Equal(t, m.Name, "redis-cell")
-	assert.Equal(t, m.Version, int64(1))
+	res, err := cell.ClThrottle(ctx, 1)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "New error")
+	}
+	fmt.Println(res)
+	assert.Equal(t, res.Blocked, false)
+	assert.Equal(t, res.Max, cell.opt.MaxBurst+1)
 }
 
 // //Test_KeyspaceNotification_Sync 测试监听事件

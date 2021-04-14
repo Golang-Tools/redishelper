@@ -33,6 +33,8 @@ func New(client redis.UniversalClient, key string, opts ...Option) (*Limiter, er
 	return k, nil
 }
 
+//Flood 灌注
+// 当返回为true说明已满,false说明未满
 func (c *Limiter) Flood(ctx context.Context, value int64) (bool, error) {
 	// if c.opt.MaxTTL != 0 {
 	// 	defer c.RefreshTTL(ctx)
@@ -81,6 +83,7 @@ func (c *Limiter) Flood(ctx context.Context, value int64) (bool, error) {
 	return true, nil
 }
 
+//WaterLevel 当前水位
 func (c *Limiter) WaterLevel(ctx context.Context) (int64, error) {
 	res, err := c.Client.IncrBy(ctx, c.Key, 0).Result()
 	if err != nil {
