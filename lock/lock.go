@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/go-redis/redis/v8"
 )
 
 //DefaultCheckPeriod 等待的轮询间隔默认500微秒
@@ -66,22 +65,56 @@ func (l *Lock) Lock(ctx context.Context) error {
 
 //Unlock 释放锁,已经释放锁或无权释放锁时报错
 func (l *Lock) Unlock(ctx context.Context) error {
-	clientid, err := l.Client.Get(ctx, l.Key).Result()
+	// clientid, err := l.Client.Get(ctx, l.Key).Result()
+	// if err != nil {
+	// 	if err == redis.Nil {
+	// 		// key不存在,不是锁定状态
+	// 		return ErrAlreadyUnLocked
+	// 	}
+	// 	return err
+	// }
+	// if clientid != l.ClientID {
+	// 	return ErrNoRightToUnLocked
+	// }
+	// _, err = l.Client.Del(ctx, l.Key).Result()
+	// if err != nil {
+	// 	return err
+	// }
+	// return nil
+
+	// 1表示删成功
+	// 2表示key不存在
+	// 3表示key不匹配
+	res, err := l.Client.Eval(ctx, `
+		if redis.call("GET", KEYS[1])
+		then 
+			if redis.call("GET", KEYS[1]) == ARGV[1]
+			then
+				return redis.call("DEL", KEYS[1])
+			else
+				return 3
+		end
+		else
+			return 2
+		end
+	`, []string{l.Key}, l.ClientID).Result()
 	if err != nil {
-		if err == redis.Nil {
-			// key不存在,不是锁定状态
+		return err
+	}
+	switch res.(int64) {
+	case 2:
+		{
 			return ErrAlreadyUnLocked
 		}
-		return err
+	case 3:
+		{
+			return ErrNoRightToUnLocked
+		}
+	default:
+		{
+			return nil
+		}
 	}
-	if clientid != l.ClientID {
-		return ErrNoRightToUnLocked
-	}
-	_, err = l.Client.Del(ctx, l.Key).Result()
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 //读操作
