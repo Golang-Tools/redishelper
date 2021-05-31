@@ -20,3 +20,4 @@
     + `github.com/Golang-Tools/redishelper/proxy`用于给`github.com/go-redis/redis/v8`中的客户端对象提供代理,满足接口`redis.UniversalClient`
     + `github.com/Golang-Tools/redishelper/randomkey`用于生成随机的key
     + `github.com/Golang-Tools/redishelper/ranker`排序工具封装,满足接口`CanBeClientKey`
+    + `github.com/Golang-Tools/redishelper/scanfinder`封装了使用scan遍历全局keys的方法
