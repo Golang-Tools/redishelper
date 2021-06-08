@@ -165,7 +165,7 @@ func Test_stream_event_group_listen(t *testing.T) {
 	p := NewProducer(s)
 	ck, ctx := NewBackgroundConsumerKey(t, keyname)
 	// 注册group
-	s.CreateGroup(ctx, "group1", "$")
+	s.CreateGroup(ctx, "group1", "$", true)
 	//初始化消费者
 	c1 := NewConsumer(ck, broker.WithStreamComsumerGroupName("group1"), broker.WithClientID(1), broker.WithBlockTime(10*time.Second), broker.WithStreamComsumerRecvBatchSize(5))
 	c2 := NewConsumer(ck, broker.WithStreamComsumerGroupName("group1"), broker.WithClientID(2), broker.WithBlockTime(10*time.Second), broker.WithStreamComsumerRecvBatchSize(5))
@@ -211,7 +211,7 @@ func Test_stream_event_group_listen_with_AckWhenDone(t *testing.T) {
 	p := NewProducer(s)
 	ck, ctx := NewBackgroundConsumerKey(t, keyname)
 	// 注册group
-	s.CreateGroup(ctx, "group1", "$")
+	s.CreateGroup(ctx, "group1", "$", true)
 	//初始化消费者
 	c1 := NewConsumer(ck, broker.WithStreamComsumerGroupName("group1"), broker.WithClientID(1), broker.WithStreamComsumerAckMode(broker.AckModeAckWhenDone), broker.WithBlockTime(10*time.Second), broker.WithStreamComsumerRecvBatchSize(5))
 	c2 := NewConsumer(ck, broker.WithStreamComsumerGroupName("group1"), broker.WithClientID(2), broker.WithStreamComsumerAckMode(broker.AckModeAckWhenDone), broker.WithBlockTime(10*time.Second), broker.WithStreamComsumerRecvBatchSize(5))
@@ -257,7 +257,7 @@ func Test_stream_event_group_listen_with_NoAck(t *testing.T) {
 	p := NewProducer(s)
 	ck, ctx := NewBackgroundConsumerKey(t, keyname)
 	// 注册group
-	s.CreateGroup(ctx, "group1", "$")
+	s.CreateGroup(ctx, "group1", "$", true)
 	//初始化消费者
 	c1 := NewConsumer(ck, broker.WithStreamComsumerGroupName("group1"), broker.WithClientID(1), broker.WithStreamComsumerAckMode(broker.AckModeNoAck), broker.WithBlockTime(10*time.Second), broker.WithStreamComsumerRecvBatchSize(5))
 	c2 := NewConsumer(ck, broker.WithStreamComsumerGroupName("group1"), broker.WithClientID(2), broker.WithStreamComsumerAckMode(broker.AckModeNoAck), broker.WithBlockTime(10*time.Second), broker.WithStreamComsumerRecvBatchSize(5))

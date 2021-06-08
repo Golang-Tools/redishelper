@@ -4,6 +4,10 @@
 
 + `lock`的主动删除操作改为原子操作
 
+## 修正实现
+
++ `broker/stream`中`Stream.CreateGroup`接口新增参数`autocreate bool`用于指定是否在key不存在时新增key
+
 ## 新增实现
 
 + 实现了使用scan遍历查询的接口

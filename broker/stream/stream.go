@@ -124,8 +124,25 @@ func (s *Stream) HasGroups(ctx context.Context, groupnames ...string) (bool, err
 //@params ctx context.Context 上下文信息,用于控制请求的结束
 //@params groupname string 消费者组名列表
 //@params start string 开始位置,"$"表示最近,"0"表示最初.也可以填入正常的id
-func (s *Stream) CreateGroup(ctx context.Context, groupname, start string) (string, error) {
-	return s.Client.XGroupCreateMkStream(ctx, s.Key, groupname, start).Result()
+func (s *Stream) CreateGroup(ctx context.Context, groupname, start string, autocreate bool) (string, error) {
+	if autocreate {
+		res, err := s.Client.Eval(ctx, `
+			if redis.call("EXITS", KEYS[1]) == ARGV[1]
+			then
+				return redis.call("XGROUP", "CREATE", KEYS[1], ARGV[1], ARGV[2])
+			else
+				return redis.call("XGROUP", "CREATE", KEYS[1], ARGV[1], ARGV[2], "MKSTREAM")
+			end
+
+		`, []string{s.Key}, groupname, start).Result()
+		if err != nil {
+			return "", err
+		}
+		return res.(string), nil
+	} else {
+		return s.Client.XGroupCreate(ctx, s.Key, groupname, start).Result()
+	}
+	// return s.Client.XGroupCreateMkStream(ctx, s.Key, groupname, start).Result()
 }
 
 //DeleteGroup 为指定消费者在指定的Stream上删除消费者组
