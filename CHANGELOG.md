@@ -1,10 +1,16 @@
-# 0.0.4
+# v0.0.5
+
+## 增加特性
+
++ `proxy`将增加接口`NewCtx`用于创建请求上下文
+
+# v0.0.4
 
 ## 修正实现
 
 + `proxy`将统一init接口,改用opt形式作为额外参数
 
-# 0.0.3
+# v0.0.3
 
 ## 性能优化
 
@@ -18,7 +24,7 @@
 
 + 实现了使用scan遍历查询的接口
 
-# 0.0.2
+# v0.0.2
 
 ## 修正实现
 
@@ -30,7 +36,7 @@
 + 新增新增`github.com/Golang-Tools/redishelper/ext`模块用于实现检查已加载模块的功能
 + 新增`github.com/Golang-Tools/redishelper/ext/redis-cell`模块用于对[redis-cell](https://github.com/brandur/redis-cell)做支持,同时用它实现了一个限流器
 
-# 0.0.1
+# v0.0.1
 
 初始化了项目,新增了如下结构:
 

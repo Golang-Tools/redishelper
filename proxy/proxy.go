@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"context"
+
 	log "github.com/Golang-Tools/loggerhelper"
 	redis "github.com/go-redis/redis/v8"
 )
@@ -107,6 +109,16 @@ func (proxy *redisProxy) Regist(cb Callback) error {
 	}
 	proxy.callBacks = append(proxy.callBacks, cb)
 	return nil
+}
+
+// NewCtx 根据注册的超时时间构造一个上下文
+func (proxy *redisProxy) NewCtx() (ctx context.Context, cancel context.CancelFunc) {
+	if proxy.opts.QueryTimeout > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), proxy.opts.QueryTimeout)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	return
 }
 
 //Proxy 默认的redis代理对象
