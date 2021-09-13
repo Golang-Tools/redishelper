@@ -11,35 +11,30 @@ type Callback func(cli redis.UniversalClient) error
 //redisProxy redis客户端的代理
 type redisProxy struct {
 	redis.UniversalClient
-	parallelcallback bool
-	callBacks        []Callback
+	opts      Options
+	callBacks []Callback
 }
 
 // New 创建一个新的数据库客户端代理
 func New() *redisProxy {
 	proxy := new(redisProxy)
+	proxy.opts = DefaultOpts
 	return proxy
 }
 
 // IsOk 检查代理是否已经可用
 func (proxy *redisProxy) IsOk() bool {
-	if proxy.UniversalClient == nil {
-		return false
-	}
-	return true
+	return proxy.UniversalClient != nil
 }
 
 //SetConnect 设置连接的客户端
 //@params cli UniversalClient 满足redis.UniversalClient接口的对象的指针
-func (proxy *redisProxy) SetConnect(cli redis.UniversalClient, hooks ...redis.Hook) error {
+func (proxy *redisProxy) SetConnect(cli redis.UniversalClient) error {
 	if proxy.IsOk() {
 		return ErrProxyAllreadySettedUniversalClient
 	}
-	for _, hook := range hooks {
-		cli.AddHook(hook)
-	}
 	proxy.UniversalClient = cli
-	if proxy.parallelcallback {
+	if proxy.opts.Parallelcallback {
 		for _, cb := range proxy.callBacks {
 			go func(cb Callback) {
 				err := cb(proxy.UniversalClient)
@@ -63,61 +58,45 @@ func (proxy *redisProxy) SetConnect(cli redis.UniversalClient, hooks ...redis.Ho
 	return nil
 }
 
-//InitFromOptions 从配置条件初始化代理对象
-func (proxy *redisProxy) InitFromOptions(options *redis.Options, hooks ...redis.Hook) error {
-	cli := redis.NewClient(options)
-	return proxy.SetConnect(cli, hooks...)
-}
-
-//InitFromOptionsParallelCallback 从配置条件初始化代理对象,并行执行回调函数
-func (proxy *redisProxy) InitFromOptionsParallelCallback(options *redis.Options, hooks ...redis.Hook) error {
-	cli := redis.NewClient(options)
-	proxy.parallelcallback = true
-	return proxy.SetConnect(cli, hooks...)
-}
-
-//InitFromURL 从URL条件初始化代理对象
-func (proxy *redisProxy) InitFromURL(url string, hooks ...redis.Hook) error {
-	options, err := redis.ParseURL(url)
-	if err != nil {
-		return err
+func (proxy *redisProxy) Init(opts ...Option) error {
+	for _, opt := range opts {
+		opt.Apply(&proxy.opts)
 	}
-	return proxy.InitFromOptions(options, hooks...)
-}
+	var cli redis.UniversalClient
+	switch proxy.opts.Type {
+	case Redis_Standalone:
+		{
+			cli = redis.NewClient(proxy.opts.StandAloneOptions)
 
-//InitFromURLParallelCallback 从URL条件初始化代理对象
-func (proxy *redisProxy) InitFromURLParallelCallback(url string, hooks ...redis.Hook) error {
-	options, err := redis.ParseURL(url)
-	if err != nil {
-		return err
+		}
+	case Redis_Cluster:
+		{
+			cli = redis.NewClusterClient(proxy.opts.ClusterOptions)
+		}
+	case Redis_Failover:
+		{
+			cli = redis.NewFailoverClient(proxy.opts.FailoverOptions)
+		}
+	case Redis_FailoverCluster:
+		{
+			cli = redis.NewFailoverClusterClient(proxy.opts.FailoverOptions)
+		}
+	case Redis_Ring:
+		{
+			cli = redis.NewRing(proxy.opts.RingOptions)
+		}
+	default:
+		{
+			return ErrUnknownClientType
+		}
+
 	}
-	return proxy.InitFromOptionsParallelCallback(options, hooks...)
-}
-
-//InitFromClusterOptions 从集群设置条件初始化代理对象
-func (proxy *redisProxy) InitFromClusterOptions(options *redis.ClusterOptions, hooks ...redis.Hook) error {
-	cli := redis.NewClusterClient(options)
-	return proxy.SetConnect(cli, hooks...)
-}
-
-//InitFromClusterOptions 从集群设置条件初始化代理对象
-func (proxy *redisProxy) InitFromClusterOptionsParallelCallback(options *redis.ClusterOptions, hooks ...redis.Hook) error {
-	cli := redis.NewClusterClient(options)
-	proxy.parallelcallback = true
-	return proxy.SetConnect(cli, hooks...)
-}
-
-//InitFromFailoverOptions 从集群设置条件初始化代理对象
-func (proxy *redisProxy) InitFromFailoverOptions(options *redis.FailoverOptions, hooks ...redis.Hook) error {
-	cli := redis.NewFailoverClusterClient(options)
-	return proxy.SetConnect(cli, hooks...)
-}
-
-//InitFromFailoverOptions从集群设置条件初始化代理对象
-func (proxy *redisProxy) InitFromFailoverOptionsParallelCallback(options *redis.FailoverOptions, hooks ...redis.Hook) error {
-	cli := redis.NewFailoverClusterClient(options)
-	proxy.parallelcallback = true
-	return proxy.SetConnect(cli, hooks...)
+	if len(proxy.opts.Hooks) > 0 {
+		for _, hook := range proxy.opts.Hooks {
+			cli.AddHook(hook)
+		}
+	}
+	return proxy.SetConnect(cli)
 }
 
 // Regist 注册回调函数,在init执行后执行回调函数

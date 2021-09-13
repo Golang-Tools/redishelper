@@ -17,14 +17,14 @@ const TEST_REDIS_WRONG_URL = "mysql://localhost:6379"
 
 func Test_redisProxy_InitFromWrongURL(t *testing.T) {
 	proxy := New()
-	err := proxy.InitFromURL(TEST_REDIS_WRONG_URL)
+	err := proxy.Init(WithURL(TEST_REDIS_WRONG_URL))
 	assert.NotNil(t, err)
 }
 
 func Test_redisProxy_InitFromURL(t *testing.T) {
 	//准备
 	proxy := New()
-	err := proxy.InitFromURL(TEST_REDIS_URL)
+	err := proxy.Init(WithURL(TEST_REDIS_URL))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
 	}
@@ -53,7 +53,7 @@ func Test_redisProxy_reset(t *testing.T) {
 		t.Log("inited db")
 		return nil
 	})
-	err := proxy.InitFromURL(TEST_REDIS_URL)
+	err := proxy.Init(WithURL(TEST_REDIS_URL))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
 	}
@@ -91,7 +91,7 @@ func Test_redisProxy_InitFromURL_with_cb(t *testing.T) {
 		assert.Equal(t, "t", res)
 		return nil
 	})
-	err := proxy.InitFromURL(TEST_REDIS_URL)
+	err := proxy.Init(WithURL(TEST_REDIS_URL))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
 	}
@@ -100,7 +100,7 @@ func Test_redisProxy_InitFromURL_with_cb(t *testing.T) {
 
 func Test_redisProxy_regist_cb_after_InitFromURL(t *testing.T) {
 	proxy := New()
-	err := proxy.InitFromURL(TEST_REDIS_URL)
+	err := proxy.Init(WithURL(TEST_REDIS_URL))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
 	}
@@ -161,7 +161,7 @@ func Test_redisProxy_InitFromURL_with_parallel_cb(t *testing.T) {
 		}
 		return nil
 	})
-	err := proxy.InitFromURLParallelCallback(TEST_REDIS_URL)
+	err := proxy.Init(WithURL(TEST_REDIS_URL), WithParallelCallback())
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
 	}
