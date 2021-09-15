@@ -1,3 +1,12 @@
+# v0.0.6
+
+## 依赖更新
+
++ `github.com/Golang-Tools/loggerhelper@v0.0.4`
++ `github.com/go-redis/redis/v8@v8.11.3`
++ `github.com/json-iterator/go@v1.1.12`
++ `github.com/vmihailenco/msgpack/v5@v5.3.4`
+
 # v0.0.5
 
 ## 增加特性
