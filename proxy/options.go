@@ -19,8 +19,6 @@ const (
 )
 
 //Option 设置key行为的选项
-//@attribute MaxTTL time.Duration 为0则不设置过期
-//@attribute AutoRefresh string 需要为crontab格式的字符串,否则不会自动定时刷新
 type Options struct {
 	Type              RedisType
 	Parallelcallback  bool
@@ -59,10 +57,10 @@ func newFuncOption(f func(*Options)) *funcOption {
 	}
 }
 
-//WithQueryTimeout 设置最大请求超时
-func WithQueryTimeout(QueryTimeout time.Duration) Option {
+//WithQueryTimeoutMS 设置最大请求超时,单位ms
+func WithQueryTimeoutMS(QueryTimeout int) Option {
 	return newFuncOption(func(o *Options) {
-		o.QueryTimeout = QueryTimeout
+		o.QueryTimeout = time.Duration(QueryTimeout) * time.Millisecond
 	})
 }
 

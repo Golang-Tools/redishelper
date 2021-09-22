@@ -1,3 +1,9 @@
+# v0.0.7
+
+## 接口优化
+
+`proxy`的参数`WithQueryTimeout`改为`WithQueryTimeoutMS`明确单位为ms
+
 # v0.0.6
 
 ## 依赖更新
