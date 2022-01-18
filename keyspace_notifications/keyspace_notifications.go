@@ -120,8 +120,8 @@ func (c *KeyspaceNotification) handdlerEvent(topic string, asyncHanddler bool, e
 }
 
 //HanddlerEvent 调用回调函数处理消息
-//@param asyncHanddler bool 是否异步执行回调函数
-//@param evt *event.Event 待处理的消息
+//@params asyncHanddler bool 是否异步执行回调函数
+//@params evt *event.Event 待处理的消息
 func (c *KeyspaceNotification) HanddlerEvent(asyncHanddler bool, evt *NotificationEvent) {
 	c.Handdlerslock.RLock()
 	c.handdlerEvent("*-*-*", asyncHanddler, evt)

@@ -53,8 +53,8 @@ func (c *ConsumerABC) UnRegistHandler(topic string) error {
 }
 
 //HanddlerEvent 调用回调函数处理消息
-//@param asyncHanddler bool 是否异步执行回调函数
-//@param evt *event.Event 待处理的消息
+//@params asyncHanddler bool 是否异步执行回调函数
+//@params evt *event.Event 待处理的消息
 func (c *ConsumerABC) HanddlerEvent(asyncHanddler bool, evt *event.Event) {
 	c.Handdlerslock.RLock()
 	allevthanddlers, ok := c.Handdlers["*"]
