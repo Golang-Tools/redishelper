@@ -3,7 +3,7 @@ package namespace
 import (
 	"strings"
 
-	"github.com/Golang-Tools/redishelper/exception"
+	"github.com/Golang-Tools/redishelper/v2/exception"
 )
 
 const DEFAULT_DELIMITER = "::"

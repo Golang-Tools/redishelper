@@ -3,7 +3,7 @@ package cache
 import (
 	"time"
 
-	h "github.com/Golang-Tools/redishelper"
+	h "github.com/Golang-Tools/redishelper/v2"
 )
 
 //ForceLevelType 强制执行类型枚举

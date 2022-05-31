@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/ext"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/ext"
 )
 
 //RedisCellStatus 令牌桶的状态信息

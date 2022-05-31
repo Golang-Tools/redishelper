@@ -7,10 +7,10 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/broker"
-	"github.com/Golang-Tools/redishelper/broker/event"
-	"github.com/Golang-Tools/redishelper/clientkey"
-	kb "github.com/Golang-Tools/redishelper/clientkey/clientkeybatch"
+	"github.com/Golang-Tools/redishelper/v2/broker"
+	"github.com/Golang-Tools/redishelper/v2/broker/event"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	kb "github.com/Golang-Tools/redishelper/v2/clientkey/clientkeybatch"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )

@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/broker"
-	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/broker"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
 	set "github.com/deckarep/golang-set"
 	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"

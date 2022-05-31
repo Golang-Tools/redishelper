@@ -1,6 +1,6 @@
-module github.com/Golang-Tools/redishelper
+module github.com/Golang-Tools/redishelper/v2
 
-go 1.15
+go 1.18
 
 require (
 	github.com/Golang-Tools/loggerhelper v0.0.4

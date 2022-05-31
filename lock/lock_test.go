@@ -7,7 +7,7 @@ import (
 	"time"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"

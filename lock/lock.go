@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
 )
 
 //DefaultCheckPeriod 等待的轮询间隔默认500微秒

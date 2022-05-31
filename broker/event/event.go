@@ -3,7 +3,7 @@ package event
 import (
 	"strconv"
 
-	"github.com/Golang-Tools/redishelper/broker"
+	"github.com/Golang-Tools/redishelper/v2/broker"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/vmihailenco/msgpack/v5"
 )

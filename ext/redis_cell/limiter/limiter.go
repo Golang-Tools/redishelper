@@ -5,7 +5,7 @@ package limiter
 import (
 	"context"
 
-	"github.com/Golang-Tools/redishelper/ext/redis_cell"
+	"github.com/Golang-Tools/redishelper/v2/ext/redis_cell"
 )
 
 //Limiter 分布式限制器

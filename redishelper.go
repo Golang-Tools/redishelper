@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/broker/event"
-	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/broker/event"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
 )
 
 type CanHanddlerLifeCycle interface {

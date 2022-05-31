@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/broker"
-	"github.com/Golang-Tools/redishelper/broker/event"
+	"github.com/Golang-Tools/redishelper/v2/broker"
+	"github.com/Golang-Tools/redishelper/v2/broker/event"
 	redis "github.com/go-redis/redis/v8"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )

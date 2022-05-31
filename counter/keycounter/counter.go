@@ -4,7 +4,7 @@ package keycounter
 import (
 	"context"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
 )
 
 //Counter 分布式计数器

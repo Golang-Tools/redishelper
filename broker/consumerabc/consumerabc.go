@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/broker/event"
+	"github.com/Golang-Tools/redishelper/v2/broker/event"
 )
 
 //ConsumerABC 消费者的基类

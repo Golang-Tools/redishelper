@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/randomkey"
+	"github.com/Golang-Tools/redishelper/v2/randomkey"
 )
 
 //AckModeType stream的Ack模式

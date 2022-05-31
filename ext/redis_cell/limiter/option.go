@@ -1,7 +1,7 @@
 package limiter
 
 import (
-	"github.com/Golang-Tools/redishelper/ext/redis_cell"
+	"github.com/Golang-Tools/redishelper/v2/ext/redis_cell"
 )
 
 //钩子函数

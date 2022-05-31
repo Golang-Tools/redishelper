@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/exception"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/exception"
 	redis "github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )

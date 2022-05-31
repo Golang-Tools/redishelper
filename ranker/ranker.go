@@ -6,8 +6,8 @@ package ranker
 import (
 	"context"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/exception"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/exception"
 	"github.com/go-redis/redis/v8"
 )
 

@@ -10,8 +10,8 @@ import (
 
 	log "github.com/Golang-Tools/loggerhelper"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/lock"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/lock"
 	"github.com/go-redis/redis/v8"
 	"github.com/robfig/cron/v3"
 )

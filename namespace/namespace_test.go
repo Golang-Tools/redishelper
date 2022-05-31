@@ -3,7 +3,7 @@ package namespace
 import (
 	"testing"
 
-	"github.com/Golang-Tools/redishelper/exception"
+	"github.com/Golang-Tools/redishelper/v2/exception"
 	"github.com/stretchr/testify/assert"
 )
 

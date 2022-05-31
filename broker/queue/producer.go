@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/broker"
-	"github.com/Golang-Tools/redishelper/broker/event"
-	"github.com/Golang-Tools/redishelper/clientkey"
-	"github.com/Golang-Tools/redishelper/randomkey"
+	"github.com/Golang-Tools/redishelper/v2/broker"
+	"github.com/Golang-Tools/redishelper/v2/broker/event"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/randomkey"
 	uuid "github.com/satori/go.uuid"
 	msgpack "github.com/vmihailenco/msgpack/v5"
 )

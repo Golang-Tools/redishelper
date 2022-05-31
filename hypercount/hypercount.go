@@ -5,7 +5,7 @@ package hypercount
 import (
 	"context"
 
-	"github.com/Golang-Tools/redishelper/clientkey"
+	"github.com/Golang-Tools/redishelper/v2/clientkey"
 )
 
 //HyperCount 估计计数对象
