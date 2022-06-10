@@ -7,57 +7,49 @@ import (
 	"context"
 	"time"
 
-	"github.com/Golang-Tools/redishelper/v2/clientkey"
+	"github.com/Golang-Tools/optparams"
+	"github.com/Golang-Tools/redishelper/v2/clientIdhelper"
+	"github.com/Golang-Tools/redishelper/v2/middlewarehelper"
+	"github.com/go-redis/redis/v8"
 )
-
-//DefaultCheckPeriod 等待的轮询间隔默认500微秒
-const DefaultCheckPeriod = 500 * time.Microsecond
 
 //MiniCheckPeriod 等待的轮询间隔最低100微秒
 const MiniCheckPeriod = 100 * time.Microsecond
 
 // Lock 分布式锁结构
 type Lock struct {
-	ClientID    string        //客户端id
-	CheckPeriod time.Duration //等待的轮询间隔
-	*clientkey.ClientKey
+	opt Options
+	*middlewarehelper.MiddleWareAbc
+	*clientIdhelper.ClientIDAbc
 }
 
 //New 新建一个锁对象
-func New(k *clientkey.ClientKey, clientID string, checkperiod ...time.Duration) (*Lock, error) {
-	lock := new(Lock)
-	lock.ClientKey = k
-	lock.ClientID = clientID
-	switch len(checkperiod) {
-	case 0:
-		{
-			lock.CheckPeriod = DefaultCheckPeriod
-		}
-	case 1:
-		{
-			cp := checkperiod[0]
-			if cp < MiniCheckPeriod {
-				return nil, ErrCheckPeriodLessThan100Microsecond
-			}
-			lock.CheckPeriod = cp
-		}
-	default:
-		{
-			return nil, ErrArgCheckPeriodMoreThan1
-		}
+func New(cli redis.UniversalClient, opts ...optparams.Option[Options]) (*Lock, error) {
+	l := new(Lock)
+	l.opt = defaultOptions
+	optparams.GetOption(&l.opt, opts...)
+	if l.opt.CheckPeriod < MiniCheckPeriod {
+		return nil, ErrCheckPeriodLessThan100Microsecond
 	}
-	return lock, nil
+	meta, err := middlewarehelper.New(cli, "lock", l.opt.MiddlewareOpts...)
+	if err != nil {
+		return nil, err
+	}
+	cid, err := clientIdhelper.New(l.opt.ClientIDOpts...)
+	l.MiddleWareAbc = meta
+	l.ClientIDAbc = cid
+	return l, nil
 }
 
 //写操作
 
 //Lock 设置锁
 func (l *Lock) Lock(ctx context.Context) error {
-	set, err := l.Client.SetNX(ctx, l.Key, l.ClientID, l.Opt.MaxTTL).Result()
+	set, err := l.Client().SetNX(ctx, l.Key(), l.ClientID(), l.MaxTTL()).Result()
 	if err != nil {
 		return err
 	}
-	if set == true {
+	if set {
 		return nil
 	}
 	return ErrAlreadyLocked
@@ -65,39 +57,20 @@ func (l *Lock) Lock(ctx context.Context) error {
 
 //Unlock 释放锁,已经释放锁或无权释放锁时报错
 func (l *Lock) Unlock(ctx context.Context) error {
-	// clientid, err := l.Client.Get(ctx, l.Key).Result()
-	// if err != nil {
-	// 	if err == redis.Nil {
-	// 		// key不存在,不是锁定状态
-	// 		return ErrAlreadyUnLocked
-	// 	}
-	// 	return err
-	// }
-	// if clientid != l.ClientID {
-	// 	return ErrNoRightToUnLocked
-	// }
-	// _, err = l.Client.Del(ctx, l.Key).Result()
-	// if err != nil {
-	// 	return err
-	// }
-	// return nil
-
 	// 1表示删成功
 	// 2表示key不存在
 	// 3表示key不匹配
-	res, err := l.Client.Eval(ctx, `
-		if redis.call("GET", KEYS[1])
-		then 
-			if redis.call("GET", KEYS[1]) == ARGV[1]
-			then
+	lunlockscript := redis.NewScript(`
+		if redis.call("EXISTS", KEYS[1]) == 1 then 
+			if redis.call("GET", KEYS[1]) == ARGV[1] then
 				return redis.call("DEL", KEYS[1])
 			else
 				return 3
-		end
+			end
 		else
 			return 2
-		end
-	`, []string{l.Key}, l.ClientID).Result()
+		end`)
+	res, err := lunlockscript.Run(ctx, l.Client(), []string{l.Key()}, l.ClientID()).Result()
 	if err != nil {
 		return err
 	}
@@ -108,7 +81,7 @@ func (l *Lock) Unlock(ctx context.Context) error {
 		}
 	case 3:
 		{
-			return ErrNoRightToUnLocked
+			return ErrNoRightToUnLock
 		}
 	default:
 		{
@@ -121,7 +94,7 @@ func (l *Lock) Unlock(ctx context.Context) error {
 
 //Check 检测是否是锁定状态,true为锁定状态,false为非锁定状态
 func (l *Lock) Check(ctx context.Context) (bool, error) {
-	r, err := l.Client.Exists(ctx, l.Key).Result()
+	r, err := l.Client().Exists(ctx, l.Key()).Result()
 	if err != nil {
 		return false, err
 	}
@@ -140,7 +113,7 @@ loop:
 			return err
 		}
 		if r {
-			time.Sleep(l.CheckPeriod)
+			time.Sleep(l.opt.CheckPeriod)
 		} else {
 			break loop
 		}

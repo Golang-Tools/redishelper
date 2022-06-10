@@ -2,13 +2,11 @@ package lock
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"testing"
 	"time"
 
-	log "github.com/Golang-Tools/loggerhelper"
-	"github.com/Golang-Tools/redishelper/v2/clientkey"
-
+	log "github.com/Golang-Tools/loggerhelper/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,7 +14,7 @@ import (
 //TEST_REDIS_URL 测试用的redis地址
 const TEST_REDIS_URL = "redis://localhost:6379"
 
-func NewBackground(t *testing.T, keyname string, opts ...clientkey.Option) (*clientkey.ClientKey, context.Context) {
+func NewBackgroundClient(t *testing.T) (redis.UniversalClient, context.Context) {
 	options, err := redis.ParseURL(TEST_REDIS_URL)
 	if err != nil {
 		assert.FailNow(t, err.Error(), "init from url error")
@@ -28,37 +26,79 @@ func NewBackground(t *testing.T, keyname string, opts ...clientkey.Option) (*cli
 	if err != nil {
 		assert.FailNow(t, err.Error(), "FlushDB error")
 	}
-	key := clientkey.New(cli, keyname, opts...)
-	fmt.Println("prepare task done")
-	return key, ctx
+	return cli, ctx
 }
 
 func Test_new_Lock_err(t *testing.T) {
 	// 准备工作
-	key, _ := NewBackground(t, "test_lock")
-	defer key.Client.Close()
+	ck, _ := NewBackgroundClient(t)
+	defer ck.Close()
 	//开始测试
-	_, err := New(key, "client01", 10*time.Second, 10*time.Second)
-	if err != nil {
-		assert.Equal(t, err, ErrArgCheckPeriodMoreThan1)
-	}
-	_, err = New(key, "client02", 10*time.Microsecond)
+	_, err := New(ck, WithCheckPeriod(10*time.Microsecond))
 	if err != nil {
 		assert.Equal(t, err, ErrCheckPeriodLessThan100Microsecond)
 	}
+
+}
+
+func Test_new_Lock_defaultkey(t *testing.T) {
+	// 准备工作
+	ck, _ := NewBackgroundClient(t)
+	defer ck.Close()
+	//开始测试
+	l, err := New(ck)
+	if err != nil {
+		assert.Equal(t, err, ErrCheckPeriodLessThan100Microsecond)
+	}
+	assert.Equal(t, true, strings.HasPrefix(l.Key(), "redishelper::lock::"))
+}
+
+func Test_new_Lock_fix_prefix(t *testing.T) {
+	// 准备工作
+	ck, _ := NewBackgroundClient(t)
+	defer ck.Close()
+	//开始测试
+	l, err := New(ck, WithNamespace("test-prefix"))
+	if err != nil {
+		assert.Equal(t, err, ErrCheckPeriodLessThan100Microsecond)
+	}
+	assert.Equal(t, true, strings.HasPrefix(l.Key(), "test-prefix::"))
+}
+
+func Test_new_Lock_fix_key(t *testing.T) {
+	// 准备工作
+	ck, _ := NewBackgroundClient(t)
+	defer ck.Close()
+	//开始测试
+	l, err := New(ck, WithSpecifiedKey("test-key"))
+	if err != nil {
+		assert.Equal(t, err, ErrCheckPeriodLessThan100Microsecond)
+	}
+	assert.Equal(t, false, strings.HasPrefix(l.Key(), "redis-helper-lock::"))
+}
+func Test_new_Lock_fix_key_and_prefix(t *testing.T) {
+	// 准备工作
+	ck, _ := NewBackgroundClient(t)
+	defer ck.Close()
+	//开始测试
+	l, err := New(ck, WithSpecifiedKey("test-key"), WithNamespace("test-prefix"))
+	if err != nil {
+		assert.Equal(t, err, ErrCheckPeriodLessThan100Microsecond)
+	}
+	assert.Equal(t, "test-key", l.Key())
 }
 
 func Test_lock_Lock(t *testing.T) {
 	// 准备工作
-	key, ctx := NewBackground(t, "test_lock")
-	defer key.Client.Close()
+	ck, ctx := NewBackgroundClient(t)
+	defer ck.Close()
 	//开始测试
-
-	lock, err := New(key, "client01", 10*time.Second)
+	key := "test_lock"
+	lock, err := New(ck, WithClientID("client01"), WithSpecifiedKey(key))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "new lock error")
 	}
-	lock2, err := New(key, "client02", 10*time.Second)
+	lock2, err := New(ck, WithClientID("client02"), WithSpecifiedKey(key))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "new lock2 error")
 	}
@@ -71,13 +111,19 @@ func Test_lock_Lock(t *testing.T) {
 	if err != nil {
 		assert.Equal(t, err, ErrAlreadyLocked)
 	} else {
-		assert.FailNow(t, "not get error")
+		assert.FailNow(t, "lock lock not get error")
+	}
+	err = lock2.Lock(ctx)
+	if err != nil {
+		assert.Equal(t, err, ErrAlreadyLocked)
+	} else {
+		assert.FailNow(t, "lock2 lock not get error")
 	}
 	err = lock2.Unlock(ctx)
 	if err != nil {
-		assert.Equal(t, err, ErrNoRightToUnLocked)
+		assert.Equal(t, err, ErrNoRightToUnLock)
 	} else {
-		assert.FailNow(t, "not get error")
+		assert.FailNow(t, "lock2 unlock not get error")
 	}
 	err = lock.Unlock(ctx)
 	if err != nil {
@@ -92,16 +138,16 @@ func Test_lock_Lock(t *testing.T) {
 }
 
 func Test_lock_waitLock(t *testing.T) {
-	// 准备工作
-	key, ctx := NewBackground(t, "test_lock")
-	defer key.Client.Close()
+	ck, ctx := NewBackgroundClient(t)
+	defer ck.Close()
 	//开始测试
+	key := "test_lock"
 
-	lock, err := New(key, "client01", 10*time.Second)
+	lock, err := New(ck, WithClientID("client01"), WithSpecifiedKey(key))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "new lock error")
 	}
-	lock2, err := New(key, "client02", 10*time.Second)
+	lock2, err := New(ck, WithClientID("client02"), WithSpecifiedKey(key))
 	if err != nil {
 		assert.FailNow(t, err.Error(), "new lock2 error")
 	}
@@ -131,4 +177,42 @@ func Test_lock_waitLock(t *testing.T) {
 	}
 	t2 := time.Now().Unix()
 	assert.LessOrEqual(t, int64(2), t2-t1)
+}
+
+func Test_lock_waitLock_maxttl(t *testing.T) {
+	ck, ctx := NewBackgroundClient(t)
+	defer ck.Close()
+	//开始测试
+	key := "test_lock"
+
+	lock, err := New(ck, WithClientID("client01"), WithSpecifiedKey(key), WithMaxTTL(2*time.Second))
+	if err != nil {
+		assert.FailNow(t, err.Error(), "new lock error")
+	}
+	locked, err := lock.Check(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "is locked error")
+	}
+	assert.Equal(t, false, locked)
+	err = lock.Lock(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "lock lock error")
+	}
+	t1 := time.Now().Unix()
+	locked, err = lock.Check(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "is locked error")
+	}
+	assert.Equal(t, true, locked)
+	err = lock.Wait(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "lock wait error")
+	}
+	t2 := time.Now().Unix()
+	assert.LessOrEqual(t, int64(2), t2-t1)
+	locked, err = lock.Check(ctx)
+	if err != nil {
+		assert.FailNow(t, err.Error(), "is locked error")
+	}
+	assert.Equal(t, false, locked)
 }
