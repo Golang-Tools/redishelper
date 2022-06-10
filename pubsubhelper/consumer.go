@@ -38,6 +38,11 @@ func NewConsumer(cli redis.UniversalClient, opts ...optparams.Option[Options]) (
 	return c, nil
 }
 
+//Client 获取连接的redis客户端
+func (s *Consumer) Client() redis.UniversalClient {
+	return s.cli
+}
+
 //Listen 监听发布订阅器
 //@params topics string 监听的topic,复数topic用`,`隔开
 //@params opts ...optparams.Option[pchelper.ListenOptions] 监听时的一些配置,具体看listenoption.go说明

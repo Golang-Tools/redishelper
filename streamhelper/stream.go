@@ -256,8 +256,3 @@ func (s *Stream) Ack(ctx context.Context, groupname string, ids ...string) error
 	}
 	return nil
 }
-
-// func (s *Stream) AsProducer(opts ...broker.Option) *Producer {
-// 	p := NewProducer(s, opts...)
-// 	return p
-// }

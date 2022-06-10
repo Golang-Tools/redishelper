@@ -40,6 +40,11 @@ func NewProducer(cli redis.UniversalClient, opts ...optparams.Option[Options]) (
 	return c, nil
 }
 
+//Client 获取连接的redis客户端
+func (p *Producer) Client() redis.UniversalClient {
+	return p.cli
+}
+
 //Publish 向队列中放入数据
 //@params ctx context.Context 请求的上下文
 //@params topic string 发送去的指定频道

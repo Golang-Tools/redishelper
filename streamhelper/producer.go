@@ -36,6 +36,11 @@ func NewProducer(cli redis.UniversalClient, opts ...optparams.Option[Options]) (
 	return c, nil
 }
 
+//Client 获取连接的redis客户端
+func (p *Producer) Client() redis.UniversalClient {
+	return p.cli
+}
+
 //Publish 向流中放入数据
 //@params ctx context.Context 请求的上下文
 //@params payload interface{} 发送的消息负载,负载如果不是map[string]interface{}形式或者可以被json/msgpack序列化的对象则统一以[value 值]的形式传出

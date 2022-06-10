@@ -1,3 +1,17 @@
+# v2.0.1
+
+## 接口重构说明
+
+改变了本项目的设计思路,现在本项目主要是提供借助redis实现的组件以及一些便捷工具.因此废除了v1版本中的核心组件`clientkey`和`clientkeybatch`.
+
+所有的子模块初始化都不再显示的依赖核心组件的实例,而是使用redis的客户端就可以直接创建.
+
+在参数方面全部改用grpc风格的可选参数设计.
+
+## 新增功能
+
++ `keyspace_notifications`,用于管理`keyspace_notifications`的设置,监听`keyspace_notifications`事件
+
 # v2.0.0
 
 使用go 1.18+语法重构项目

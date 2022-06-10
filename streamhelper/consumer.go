@@ -45,6 +45,11 @@ func NewConsumer(cli redis.UniversalClient, opts ...optparams.Option[Options]) (
 	return c, nil
 }
 
+//Client 获取连接的redis客户端
+func (s *Consumer) Client() redis.UniversalClient {
+	return s.cli
+}
+
 //Get 从多个流中取出数据
 //@params ctx context.Context 请求的上下文
 //@params timeout time.Duration 等待超时时间,为0则表示一直阻塞直到有数据

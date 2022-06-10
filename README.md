@@ -20,3 +20,4 @@
 + `ranker`,利用redis的有序结合数据结构构造的分布式排序器
 + `hypercount`,利用redis的`hypercount`构造的分布式大规模计数器,适用于统计日活等操作.
 + `bitmapset`,利用redis的`bitmap`构造的分布式集合,适合用于去重操作,签到操作等
++ `keyspace_notifications`,管理`keyspace_notifications`的设置,监听`keyspace_notifications`事件
