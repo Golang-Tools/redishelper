@@ -13,28 +13,28 @@ var logger *log.Log
 //Callback redis操作的回调函数
 type Callback func(cli redis.UniversalClient) error
 
-//redisProxy redis客户端的代理
-type redisProxy struct {
+//RedisProxy redis客户端的代理
+type RedisProxy struct {
 	redis.UniversalClient
 	opts      Options
 	callBacks []Callback
 }
 
 // New 创建一个新的数据库客户端代理
-func New() *redisProxy {
-	proxy := new(redisProxy)
+func New() *RedisProxy {
+	proxy := new(RedisProxy)
 	proxy.opts = DefaultOpts
 	return proxy
 }
 
 // IsOk 检查代理是否已经可用
-func (proxy *redisProxy) IsOk() bool {
+func (proxy *RedisProxy) IsOk() bool {
 	return proxy.UniversalClient != nil
 }
 
 //SetConnect 设置连接的客户端
 //@params cli UniversalClient 满足redis.UniversalClient接口的对象的指针
-func (proxy *redisProxy) SetConnect(cli redis.UniversalClient) error {
+func (proxy *RedisProxy) SetConnect(cli redis.UniversalClient) error {
 	if proxy.IsOk() {
 		return ErrProxyAllreadySettedUniversalClient
 	}
@@ -63,7 +63,7 @@ func (proxy *redisProxy) SetConnect(cli redis.UniversalClient) error {
 	return nil
 }
 
-func (proxy *redisProxy) Init(opts ...optparams.Option[Options]) error {
+func (proxy *RedisProxy) Init(opts ...optparams.Option[Options]) error {
 	optparams.GetOption(&proxy.opts, opts...)
 	var cli redis.UniversalClient
 	switch proxy.opts.Type {
@@ -104,7 +104,7 @@ func (proxy *redisProxy) Init(opts ...optparams.Option[Options]) error {
 
 // Regist 注册回调函数,在init执行后执行回调函数
 //如果对象已经设置了被代理客户端则无法再注册回调函数
-func (proxy *redisProxy) Regist(cb Callback) error {
+func (proxy *RedisProxy) Regist(cb Callback) error {
 	if proxy.IsOk() {
 		return ErrProxyAllreadySettedUniversalClient
 	}
@@ -113,7 +113,7 @@ func (proxy *redisProxy) Regist(cb Callback) error {
 }
 
 // NewCtx 根据注册的超时时间构造一个上下文
-func (proxy *redisProxy) NewCtx() (ctx context.Context, cancel context.CancelFunc) {
+func (proxy *RedisProxy) NewCtx() (ctx context.Context, cancel context.CancelFunc) {
 	if proxy.opts.QueryTimeout > 0 {
 		ctx, cancel = context.WithTimeout(context.Background(), proxy.opts.QueryTimeout)
 	} else {
@@ -123,7 +123,7 @@ func (proxy *redisProxy) NewCtx() (ctx context.Context, cancel context.CancelFun
 }
 
 //Default 默认的redis代理对象
-var Default *redisProxy
+var Default *RedisProxy
 
 func init() {
 	log.Set(log.WithExtFields(log.Dict{"module": "redis-proxy"}))
