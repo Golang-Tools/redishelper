@@ -1,0 +1,383 @@
+package tdigest
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"time"
+
+	log "github.com/Golang-Tools/loggerhelper/v2"
+	"github.com/Golang-Tools/optparams"
+	"github.com/Golang-Tools/redishelper/v2/exthelper"
+	"github.com/Golang-Tools/redishelper/v2/exthelper/redisbloomhelper"
+	"github.com/Golang-Tools/redishelper/v2/middlewarehelper"
+	"github.com/go-redis/redis/v8"
+)
+
+//TDigest T-Digest Sketch对象,用于统计大量数据下的中位数
+//比较常见的场景还是在需要实时统计一些数据的监控系统中用于估算大量数据情况下的百分位数,比如需要知道监控的app当天的启动时长90%位数,又如要统计一个应用接口的响应时长95%百分位数
+//[T-Digest Sketch](https://dataorigami.net/blogs/napkin-folding/19055451-percentile-and-quantile-estimation-of-big-data-the-t-digest) 依然是一个估算算法,它对极端值比如说 1%或99%的百分位要比50%的百分位要准确.
+//而多数情况下我们也是更加关心极端状况.在实现方面,redis应该使用的是`MergingDigest`,它的插入时间并不稳定,但查询性能更好
+//其基本思路是使用聚类计算数据的质心,使用质心来拟合数据的概率密度函数,利用这个概率密度函数来计算百分位数
+type TDigest struct {
+	*middlewarehelper.MiddleWareAbc
+	opt Options
+}
+
+//New 创建一个TDigest对象
+//@params cli redis.UniversalClient
+//@params opts ...optparams.Option[Options]
+func New(cli redis.UniversalClient, opts ...optparams.Option[Options]) (*TDigest, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	m, err := exthelper.CheckModule(cli, ctx, "bf")
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, errors.New("redis server not load module bf yet")
+	}
+	bm := new(TDigest)
+	bm.opt = Defaultopt
+	optparams.GetOption(&bm.opt, opts...)
+	mi, err := middlewarehelper.New(cli, bm.opt.Middlewaretype, bm.opt.MiddlewareOpts...)
+	if err != nil {
+		return nil, err
+	}
+	bm.MiddleWareAbc = mi
+	if len(bm.opt.InitOpts) > 0 {
+		if bm.MaxTTL() > 0 {
+			bm.opt.InitOpts = append(bm.opt.InitOpts, InitWithRefreshTTL())
+		}
+		err := bm.Init(ctx, bm.opt.InitOpts...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return bm, nil
+}
+
+func initCmds(key string, opt *InitOpts) (cmd string, params []interface{}, cmdswithoutttl []interface{}) {
+	cmd = "TDIGEST.CREATE"
+	cmdswithoutttl = append(cmdswithoutttl, cmd, key)
+	if opt.Compression > 0 {
+		params = append(params, opt.Compression)
+		cmdswithoutttl = append(cmdswithoutttl, opt.Compression)
+	} else {
+		params = append(params, 100)
+		cmdswithoutttl = append(cmdswithoutttl, 100)
+	}
+	return
+}
+
+//Init 初始化TDigest
+//@params opts ...optparams.Option[InitOpts],注意默认的Compression设置为100
+func (c *TDigest) Init(ctx context.Context, opts ...optparams.Option[InitOpts]) error {
+	defaultopt := InitOpts{}
+	optparams.GetOption(&defaultopt, opts...)
+	refreshopt := middlewarehelper.RefreshOpt{}
+	optparams.GetOption(&refreshopt, defaultopt.RefreshOpts...)
+	var ttl time.Duration = 0
+	if refreshopt.RefreshTTL == middlewarehelper.RefreshTTLType_Refresh {
+		if refreshopt.TTL > 0 {
+			ttl = refreshopt.TTL
+		} else {
+			if c.MaxTTL() > 0 {
+				ttl = c.MaxTTL()
+			}
+		}
+	}
+	cmd, params, cmdswithoutttl := initCmds(c.Key(), &defaultopt)
+	if ttl > 0 {
+		_, err := c.DoCmdWithTTL(ctx, cmd, c.Key(), c.MaxTTL(), params...)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//Reset 重置TDigest
+func (c *TDigest) Reset(ctx context.Context) error {
+	cmd := "TDIGEST.RESET"
+	cmdswithoutttl := []interface{}{cmd, c.Key()}
+	_, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//Merge 将一个TDigest对象合并到自身
+func (c *TDigest) Merge(ctx context.Context, other *TDigest) error {
+	cmd := "TDIGEST.MERGE"
+	cmdswithoutttl := []interface{}{cmd, c.Key(), other.Key()}
+	_, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func addValueCmds(key string, pairs ...*ValueWeightPair) (cmd string, params []interface{}, cmdswithoutttl []interface{}) {
+	cmd = "TDIGEST.ADD"
+	cmdswithoutttl = append(cmdswithoutttl, cmd, key)
+	for _, pair := range pairs {
+		cmdswithoutttl = append(cmdswithoutttl, pair.Value, pair.Weight)
+		params = append(params, pair.Value, pair.Weight)
+	}
+	log.Debug("addValueCmds", log.Dict{"cmd": cmd, "params": params, "cmdswithoutttl": cmdswithoutttl})
+	return
+}
+
+//AddValue 为一个取值添加权重
+//@params value float64 要添加的某一个观测到的值
+//@params weight float64 观测到的这个值的权重(大于0,可以认为是观察到的频次)
+//@params opts ...optparams.Option[IncrOpts] 增加数据时的设置,可以使用`IncrWithIncrement`额外指定物品的增量
+func (c *TDigest) MAddValue(ctx context.Context, opts ...optparams.Option[IncrOpts]) error {
+	defaultopt := IncrOpts{}
+	optparams.GetOption(&defaultopt, opts...)
+	refreshopt := middlewarehelper.RefreshOpt{}
+	optparams.GetOption(&refreshopt, defaultopt.RefreshOpts...)
+	cmd, params, cmdswithoutttl := addValueCmds(c.Key(), defaultopt.Pairs...)
+	var ttl time.Duration = 0
+	if refreshopt.RefreshTTL == middlewarehelper.RefreshTTLType_Refresh {
+		if refreshopt.TTL > 0 {
+			ttl = refreshopt.TTL
+		} else {
+			if c.MaxTTL() > 0 {
+				ttl = c.MaxTTL()
+			}
+		}
+	}
+	if ttl > 0 {
+		_, err := c.DoCmdWithTTL(ctx, cmd, c.Key(), ttl, params...)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//AddValue 为一个取值添加权重
+//@params value float64 要添加的某一个观测到的值
+//@params weight float64 观测到的这个值的权重(大于0,可以认为是观察到的频次)
+//@params opts ...optparams.Option[IncrOpts] 增加数据时的设置,可以使用`IncrWithIncrement`额外指定物品的增量
+func (c *TDigest) AddValue(ctx context.Context, value, weight float64, opts ...optparams.Option[IncrOpts]) error {
+	defaultopt := IncrOpts{}
+	optparams.GetOption(&defaultopt, opts...)
+	newopt := []optparams.Option[IncrOpts]{IncrPair(value, weight)}
+	if len(defaultopt.RefreshOpts) > 0 {
+		newopt = append(newopt, mIncr(defaultopt.RefreshOpts...))
+	}
+	return c.MAddValue(ctx, newopt...)
+}
+
+func cdfCmds(key string, value float64) (cmd string, cmdswithoutttl []interface{}) {
+	cmd = "TDIGEST.CDF"
+	cmdswithoutttl = append(cmdswithoutttl, cmd, key, value)
+	return
+}
+
+//CDF 估计添加的所有观察值中小于指定值的比例
+//@params value float64 要观测的值
+func (c *TDigest) CDF(ctx context.Context, value float64) (float64, error) {
+	cmd, cmdswithoutttl := cdfCmds(c.Key(), value)
+	res, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return 0, err
+	}
+	info, ok := res.(string)
+	if !ok {
+		return 0, fmt.Errorf("cannot parser %s result to string", cmd)
+	}
+	if info == "nan" {
+		return 0, redisbloomhelper.ErrEmptyValue
+	} else {
+		return strconv.ParseFloat(info, 64)
+	}
+}
+
+//Max 获取观测到的最大值
+func (c *TDigest) Max(ctx context.Context) (float64, error) {
+	cmd := "TDIGEST.MAX"
+	cmdswithoutttl := []interface{}{cmd, c.Key()}
+	res, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return 0, err
+	}
+	info, ok := res.(string)
+	if !ok {
+		return 0, fmt.Errorf("cannot parser %s result to string", cmd)
+	}
+	if info == "nan" {
+		return 0, redisbloomhelper.ErrEmptyValue
+	} else {
+		return strconv.ParseFloat(info, 64)
+	}
+}
+
+//Max 获取观测到的最小值
+func (c *TDigest) Min(ctx context.Context) (float64, error) {
+	cmd := "TDIGEST.MIN"
+	cmdswithoutttl := []interface{}{cmd, c.Key()}
+	res, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return 0, err
+	}
+	info, ok := res.(string)
+	if !ok {
+		return 0, fmt.Errorf("cannot parser %s result to string", cmd)
+	}
+	if info == "nan" {
+		return 0, redisbloomhelper.ErrEmptyValue
+	} else {
+		return strconv.ParseFloat(info, 64)
+	}
+}
+
+func quantileCmds(key string, quantiles ...float64) (cmd string, cmdswithoutttl []interface{}) {
+	cmd = "TDIGEST.QUANTILE"
+	cmdswithoutttl = append(cmdswithoutttl, cmd, key)
+	for _, q := range quantiles {
+		cmdswithoutttl = append(cmdswithoutttl, q)
+	}
+	return
+}
+
+//Quantile 获取不同百分位数
+//@params quantiles ...float64 百分位
+func (c *TDigest) Quantile(ctx context.Context, quantiles ...float64) (map[float64]float64, error) {
+	cmd, cmdswithoutttl := quantileCmds(c.Key(), quantiles...)
+	res, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return nil, err
+	}
+	info, ok := res.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("cannot parser %s result to []interface{}", cmd)
+	}
+	i := 0
+	result := map[float64]float64{}
+	for i < len(info) {
+		key_s, ok := info[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("cannot parser %s result to string", cmd)
+		}
+		key, err := strconv.ParseFloat(key_s, 64)
+		if err == nil {
+			return nil, err
+		}
+
+		value_s, ok := info[i+1].(string)
+		if !ok {
+			return nil, fmt.Errorf("cannot parser %s result to string", cmd)
+		}
+		value, err := strconv.ParseFloat(value_s, 64)
+		if err == nil {
+			return nil, err
+		}
+		result[key] = value
+		i += 2
+	}
+	return result, nil
+}
+
+//TrimmedMean 获取指定百分比范围内的数据均值
+//@params low_cut_quantile float64 百分位下限
+//@params high_cut_quantile float64 百分位上限
+
+func (c *TDigest) TrimmedMean(ctx context.Context, low_cut_quantile, high_cut_quantile float64) (float64, error) {
+	cmd := "TDIGEST.TRIMMED_MEAN"
+	cmdswithoutttl := []interface{}{cmd, c.Key(), low_cut_quantile, high_cut_quantile}
+	res, err := c.Client().Do(ctx, cmdswithoutttl...).Result()
+	if err != nil {
+		return 0, err
+	}
+	info, ok := res.(string)
+	if !ok {
+		return 0, fmt.Errorf("cannot parser %s result to string", cmd)
+	}
+	if info == "nan" {
+		return 0, redisbloomhelper.ErrEmptyValue
+	} else {
+		return strconv.ParseFloat(info, 64)
+	}
+}
+
+//TDigestInfo TDigest状态信息
+type TDigestInfo struct {
+	Compression       int64  `json:"Compression"`
+	Capacity          int64  `json:"Capacity"`
+	MergedNodes       int64  `json:"MergedNodes"`
+	UnmergedNodes     int64  `json:"UnmergedNodes"`
+	MergedWeight      string `json:"MergedWeight"`
+	UnmergedWeight    string `json:"UnmergedWeight"`
+	TotalCompressions int64  `json:"TotalCompressions"`
+}
+
+//Info 查看指定TopK的状态
+func (c *TDigest) Info(ctx context.Context) (*TDigestInfo, error) {
+	cmd := []interface{}{"TDIGEST.INFO", c.Key()}
+	res, err := c.Client().Do(ctx, cmd...).Result()
+	if err != nil {
+		return nil, err
+	}
+	infos, ok := res.([]interface{})
+	if len(infos) != 14 {
+		return nil, redisbloomhelper.ErrResultLenNotMatch
+	}
+	if !ok {
+		return nil, errors.New("cannot parser TOPK.INFO result to []interface{}")
+	}
+	// log.Info("get info", log.Dict{"res": res})
+	compression, ok := infos[1].(int64)
+	if !ok {
+		return nil, errors.New("cannot parser compression result to int64")
+	}
+	capacity, ok := infos[3].(int64)
+	if !ok {
+		return nil, errors.New("cannot parser capacity result to int64")
+	}
+	mergedNodes, ok := infos[5].(int64)
+	if !ok {
+		return nil, errors.New("cannot parser mergedNodes result to int64")
+	}
+	unmergedNodes, ok := infos[7].(int64)
+	if !ok {
+		return nil, errors.New("cannot parser unmergedNodes result to int64")
+	}
+	mergedWeight, ok := infos[9].(string)
+	if !ok {
+		return nil, errors.New("cannot parser mergedWeight result to int64")
+	}
+	unmergedWeight, ok := infos[11].(string)
+	if !ok {
+		return nil, errors.New("cannot parser unmergedWeight result to int64")
+	}
+	totalCompressions, ok := infos[13].(int64)
+	if !ok {
+		return nil, errors.New("cannot parser totalCompressions result to int64")
+	}
+	info := TDigestInfo{
+		Compression:       compression,
+		Capacity:          capacity,
+		MergedNodes:       mergedNodes,
+		UnmergedNodes:     unmergedNodes,
+		MergedWeight:      mergedWeight,
+		UnmergedWeight:    unmergedWeight,
+		TotalCompressions: totalCompressions,
+	}
+	return &info, nil
+}

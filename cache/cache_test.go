@@ -96,6 +96,7 @@ func NewWrongBackgroundClient(t *testing.T) (redis.UniversalClient, context.Cont
 	cli.FlushDB(ctx).Result()
 	_, err = cli.FlushDB(ctx).Result()
 	if err != nil {
+		assert.FailNow(t, err.Error(), "FlushDB error")
 		log.Info("FlushDB error", map[string]any{"err": err.Error()})
 	}
 	return cli, ctx

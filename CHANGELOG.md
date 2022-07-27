@@ -1,3 +1,17 @@
+# v2.1.0
+
+配合[redis-allinone@v1.2.0](https://github.com/Basic-Components/redis-allinone/tree/v1.2.0)进行的更新
+
+## 新增功能
+
++ 新增对插件RedisBloom扩展的支持,增加布隆过滤器等功能(暂未支持tdegist和两个过滤器的序列化和加载功能)
+
+## 接口优化
+
++ 将扩展相关合并到一个模块
++ 扩展`exthelper/cellhelper`,现在它可以更加灵活
++ 增加扩展对pipeline的支持
+
 # v2.0.2
 
 ## 接口优化

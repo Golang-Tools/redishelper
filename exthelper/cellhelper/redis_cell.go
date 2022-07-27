@@ -4,6 +4,7 @@ package cellhelper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Golang-Tools/optparams"
@@ -50,41 +51,73 @@ func New(cli redis.UniversalClient, opts ...optparams.Option[Options]) (*RedisCe
 	return bm, nil
 }
 
-// //Capacity 最大容量
-// func (c *RedisCell) Capacity() int64 {
-// 	return c.opt.MaxBurst + 1
-// }
-
 //ClThrottle 增加桶中token数并返回桶状态
 //@params count int64 增加的token数量
-func (c *RedisCell) ClThrottle(ctx context.Context, count int64) (*RedisCellStatus, error) {
+//@params  opts ...optparams.Option[ClThrottleOpts] 其他参数
+func (c *RedisCell) ClThrottle(ctx context.Context, count int64, opts ...optparams.Option[ClThrottleOpts]) (*RedisCellStatus, error) {
+	defaultopt := ClThrottleOpts{}
+	optparams.GetOption(&defaultopt, opts...)
+	refreshopt := middlewarehelper.RefreshOpt{}
+	optparams.GetOption(&refreshopt, defaultopt.RefreshOpts...)
+	var ttl time.Duration = 0
+	if refreshopt.TTL > 0 {
+		ttl = refreshopt.TTL
+	} else {
+		if c.MaxTTL() > 0 {
+			ttl = c.MaxTTL()
+		}
+	}
+	maxBurst := c.opt.MaxBurst
+	if defaultopt.MaxBurst > 0 {
+		maxBurst = defaultopt.MaxBurst
+	}
+	countPerPeriod := c.opt.CountPerPeriod
+	if defaultopt.CountPerPeriod > 0 {
+		countPerPeriod = defaultopt.CountPerPeriod
+	}
+	period := c.opt.Period
+	if defaultopt.Period > 0 {
+		period = defaultopt.Period
+	}
+	cmd := "CL.THROTTLE"
+	// cmd := []interface{}{"CL.THROTTLE", c.Key(), maxBurst, countPerPeriod, period, count}
 	var infos []interface{}
 	var ok bool
-	if c.MaxTTL() > 0 {
-		pipe := c.Client().TxPipeline()
-		res_cmd := pipe.Do(ctx, "CL.THROTTLE", c.Key(), c.opt.MaxBurst, c.opt.CountPerPeriod, c.opt.Period, count)
-		pipe.Expire(ctx, c.Key(), c.MaxTTL())
-		_, err := pipe.Exec(ctx)
-		if err != nil {
-			return nil, err
+	if ttl > 0 && refreshopt.RefreshTTL != middlewarehelper.RefreshTTLType_NoRefresh {
+		if refreshopt.RefreshTTL == middlewarehelper.RefreshTTLType_Refresh {
+			res, err := c.DoCmdWithTTL(ctx, cmd, c.Key(), ttl, maxBurst, countPerPeriod, period, count)
+			if err != nil {
+				return nil, err
+			}
+			infos, ok = res.([]interface{})
+		} else {
+			exists, err := c.MiddleWareAbc.Exists(ctx)
+			if err != nil {
+				return nil, err
+			}
+			var res interface{}
+			if exists {
+				res, err = c.Client().Do(ctx, cmd, c.Key(), maxBurst, countPerPeriod, period, count).Result()
+			} else {
+				res, err = c.DoCmdWithTTL(ctx, cmd, c.Key(), ttl, maxBurst, countPerPeriod, period, count)
+			}
+			if err != nil {
+				return nil, err
+			}
+			infos, ok = res.([]interface{})
 		}
-		res, err := res_cmd.Result()
-		if err != nil {
-			return nil, err
-		}
-		infos, ok = res.([]interface{})
 	} else {
-		res, err := c.Client().Do(ctx, "CL.THROTTLE", c.Key(), c.opt.MaxBurst, c.opt.CountPerPeriod, c.opt.Period, count).Result()
+		res, err := c.Client().Do(ctx, cmd, c.Key(), maxBurst, countPerPeriod, period, count).Result()
 		if err != nil {
 			return nil, err
 		}
 		infos, ok = res.([]interface{})
 	}
 	if !ok {
-		return nil, errors.New("cannot parser ClThrottle results to []interface{}")
+		return nil, fmt.Errorf("cannot parser %s results to []interface{}", cmd)
 	}
 	if len(infos) != 5 {
-		return nil, errors.New("ClThrottle results not ok")
+		return nil, fmt.Errorf("%s results not ok", cmd)
 	}
 	var block bool
 	if infos[0].(int64) == int64(0) {

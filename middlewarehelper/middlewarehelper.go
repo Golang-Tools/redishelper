@@ -203,3 +203,22 @@ func (l *MiddleWareAbc) StopAutoRefresh(opts ...optparams.Option[ForceOpt]) erro
 	l.autorefreshtaskid = 0
 	return nil
 }
+
+func DoCmdWithTTL(pipe redis.Pipeliner, ctx context.Context, cmd, key string, exp time.Duration, params ...interface{}) *redis.Cmd {
+	cmds := []interface{}{cmd, key}
+	cmds = append(cmds, params...)
+	res_cmd := pipe.Do(ctx, cmds...)
+	pipe.Expire(ctx, key, exp)
+	return res_cmd
+}
+
+func (l *MiddleWareAbc) DoCmdWithTTL(ctx context.Context, cmd, key string, exp time.Duration, params ...interface{}) (interface{}, error) {
+	pipe := l.Client().TxPipeline()
+	res_cmd := DoCmdWithTTL(pipe, ctx, cmd, key, exp, params...)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	res, err := res_cmd.Result()
+	return res, err
+}

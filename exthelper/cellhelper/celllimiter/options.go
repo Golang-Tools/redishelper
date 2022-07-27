@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Golang-Tools/optparams"
-	"github.com/Golang-Tools/redishelper/v2/cellhelper"
+	"github.com/Golang-Tools/redishelper/v2/exthelper/cellhelper"
 	"github.com/Golang-Tools/redishelper/v2/limiterhelper"
 	"github.com/robfig/cron/v3"
 )
@@ -44,14 +44,14 @@ func c(opts ...optparams.Option[cellhelper.Options]) optparams.Option[Options] {
 	})
 }
 
-//WithCountPerPeriod 设置时间间隔内的token消减数
-func WithCountPerPeriod(countPerPeriod int64) optparams.Option[Options] {
-	return c(cellhelper.WithCountPerPeriod(countPerPeriod))
+//WithDefaultCountPerPeriod 设置时间间隔内的token消减数
+func WithDefaultCountPerPeriod(countPerPeriod int64) optparams.Option[Options] {
+	return c(cellhelper.WithDefaultCountPerPeriod(countPerPeriod))
 }
 
-//WithPeriod 设置token消减间隔时长,单位s
-func WithPeriod(period int64) optparams.Option[Options] {
-	return c(cellhelper.WithPeriod(period))
+//WithDefaultPeriod 设置token消减间隔时长,单位s
+func WithDefaultPeriod(period int64) optparams.Option[Options] {
+	return c(cellhelper.WithDefaultPeriod(period))
 }
 
 //WithMaxTTL 设置token消减间隔时长,单位s
@@ -94,6 +94,6 @@ func WithMaxSize(maxsize int64) optparams.Option[Options] {
 		if o.CellOpts == nil {
 			o.CellOpts = []optparams.Option[cellhelper.Options]{}
 		}
-		o.CellOpts = append(o.CellOpts, cellhelper.WithMaxBurst(maxsize-1))
+		o.CellOpts = append(o.CellOpts, cellhelper.WithDefaultMaxBurst(maxsize-1))
 	})
 }

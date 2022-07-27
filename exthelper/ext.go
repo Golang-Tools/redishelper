@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 
-	log "github.com/Golang-Tools/loggerhelper/v2"
+	// log "github.com/Golang-Tools/loggerhelper/v2"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -20,7 +20,7 @@ func ListModule(client redis.UniversalClient, ctx context.Context) ([]*Module, e
 	if err != nil {
 		return nil, err
 	}
-	log.Info("get moduleinfos", log.Dict{"moduleinfos": moduleinfos})
+	// log.Info("get moduleinfos", log.Dict{"moduleinfos": moduleinfos})
 	infos, ok := moduleinfos.([]interface{})
 	if !ok {
 		return nil, errors.New("cannot parser moduleinfos to []interface{}")

@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/Golang-Tools/optparams"
-	"github.com/Golang-Tools/redishelper/v2/cellhelper"
+	"github.com/Golang-Tools/redishelper/v2/exthelper/cellhelper"
 	"github.com/Golang-Tools/redishelper/v2/limiterhelper"
 	"github.com/go-redis/redis/v8"
 )
@@ -38,7 +38,7 @@ func New(cli redis.UniversalClient, opts ...optparams.Option[Options]) (*Limiter
 }
 
 func (c *Limiter) Flood(ctx context.Context, value int64) (bool, error) {
-	res, err := c.ClThrottle(ctx, value)
+	res, err := c.ClThrottle(ctx, value, cellhelper.RefreshTTL())
 	if err != nil {
 		return true, err
 	}
@@ -49,7 +49,7 @@ func (c *Limiter) Flood(ctx context.Context, value int64) (bool, error) {
 }
 
 func (c *Limiter) WaterLevel(ctx context.Context) (int64, error) {
-	res, err := c.ClThrottle(ctx, 0)
+	res, err := c.ClThrottle(ctx, 0, cellhelper.RefreshTTL())
 	if err != nil {
 		return 0, err
 	}

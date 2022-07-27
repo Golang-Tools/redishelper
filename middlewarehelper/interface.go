@@ -42,4 +42,11 @@ type MiddlewareInterface interface {
 	//StopAutoRefresh 取消自动更新缓存
 	//@params opts ...optparams.Option[ForceOpt] 使用参数Force()强制停下整个定时任务cron对象
 	StopAutoRefresh(opts ...optparams.Option[ForceOpt]) error
+
+	//DoCmdWithTTL 单条命令改为pipeline执行后添加ttl
+	//@params ctx context.Context 上下文信息,用于控制请求的结束
+	//@params cmd []interface{} 待执行命令
+	//@params exp time.Duration ttl超时
+	//@returns interface{} 命令执行好后调用`.Result()`返回的值
+	DoCmdWithTTL(ctx context.Context, cmd []interface{}, exp time.Duration) (interface{}, error)
 }

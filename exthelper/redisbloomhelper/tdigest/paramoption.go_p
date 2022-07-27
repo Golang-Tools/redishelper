@@ -1,0 +1,92 @@
+package tdigest
+
+import (
+	"time"
+
+	"github.com/Golang-Tools/optparams"
+	"github.com/Golang-Tools/redishelper/v2/middlewarehelper"
+)
+
+type InitOpts struct {
+	Compression int64
+	RefreshOpts []optparams.Option[middlewarehelper.RefreshOpt]
+}
+
+//InitWithWidth 设置草图压缩率,默认为100,越大则精度越高但占用资源更多
+func InitWithCompression(compression int64) optparams.Option[InitOpts] {
+	return optparams.NewFuncOption(func(o *InitOpts) {
+		o.Compression = compression
+	})
+}
+
+//mInit 使用optparams.Option[middlewarehelper.Options]设置中间件属性
+func mInit(opts ...optparams.Option[middlewarehelper.RefreshOpt]) optparams.Option[InitOpts] {
+	return optparams.NewFuncOption(func(o *InitOpts) {
+		if o.RefreshOpts == nil {
+			o.RefreshOpts = []optparams.Option[middlewarehelper.RefreshOpt]{}
+		}
+		o.RefreshOpts = append(o.RefreshOpts, opts...)
+	})
+}
+
+//InitWithhRefreshTTL 设置使用maxttl设置key的过期,pipeline无效
+func InitWithRefreshTTL() optparams.Option[InitOpts] {
+	return mInit(middlewarehelper.RefreshTTL())
+}
+
+//InitWithTTL 设置使用指定的ttl设置key的过期
+func InitWithTTL(t time.Duration) optparams.Option[InitOpts] {
+	return mInit(middlewarehelper.WithTTL(t))
+}
+
+type ValueWeightPair struct {
+	Value  float64
+	Weight float64
+}
+
+//IncrOpts 是否刷新ttl的配置项
+type IncrOpts struct {
+	Pairs       []*ValueWeightPair
+	RefreshOpts []optparams.Option[middlewarehelper.RefreshOpt]
+}
+
+func IncrWithPairs(pairs ...*ValueWeightPair) optparams.Option[IncrOpts] {
+	return optparams.NewFuncOption(func(o *IncrOpts) {
+		if o.Pairs == nil {
+			o.Pairs = []*ValueWeightPair{}
+		}
+		o.Pairs = append(o.Pairs, pairs...)
+	})
+}
+func IncrPair(value, weight float64) optparams.Option[IncrOpts] {
+	return optparams.NewFuncOption(func(o *IncrOpts) {
+		if o.Pairs == nil {
+			o.Pairs = []*ValueWeightPair{}
+		}
+		pair := ValueWeightPair{
+			Value:  value,
+			Weight: weight,
+		}
+		o.Pairs = append(o.Pairs, &pair)
+	})
+}
+
+//mIncr 使用optparams.Option[middlewarehelper.Options]设置中间件属性
+func mIncr(opts ...optparams.Option[middlewarehelper.RefreshOpt]) optparams.Option[IncrOpts] {
+	return optparams.NewFuncOption(func(o *IncrOpts) {
+		if o.RefreshOpts == nil {
+			o.RefreshOpts = []optparams.Option[middlewarehelper.RefreshOpt]{}
+		}
+		o.RefreshOpts = append(o.RefreshOpts, opts...)
+	})
+}
+
+//IncrWithhRefreshTTL 设置总是刷新
+func IncrWithRefreshTTL() optparams.Option[IncrOpts] {
+	return mIncr(middlewarehelper.RefreshTTL())
+}
+
+//IncrWithTTL 设置总是使用指定的ttl刷新key
+func IncrWithTTL(t time.Duration) optparams.Option[IncrOpts] {
+	return mIncr(middlewarehelper.WithTTL(t))
+}

@@ -1,4 +1,4 @@
-package cellhelper
+package tdigest
 
 import (
 	"time"
@@ -11,45 +11,20 @@ import (
 //Options broker的配置
 type Options struct {
 	Middlewaretype string
-	MaxBurst       int64
-	CountPerPeriod int64
-	Period         int64
 	MiddlewareOpts []optparams.Option[middlewarehelper.Options] //初始化Middleware的配置
+	InitOpts       []optparams.Option[InitOpts]                 //初始化参数
 }
 
 var Defaultopt = Options{
-	Middlewaretype: "redis-cell",
-	MaxBurst:       99,
-	CountPerPeriod: 30,
-	Period:         60,
+	Middlewaretype: "redis-ext-tdigest",
 	MiddlewareOpts: []optparams.Option[middlewarehelper.Options]{},
+	InitOpts:       []optparams.Option[InitOpts]{},
 }
 
 //WithMiddlewaretype 设置中间件类型
 func WithMiddlewaretype(typename string) optparams.Option[Options] {
 	return optparams.NewFuncOption(func(o *Options) {
 		o.Middlewaretype = typename
-	})
-}
-
-//WithMaxBurst 设置最大熔断数,最大token数为MaxBurst+1
-func WithMaxBurst(maxBurst int64) optparams.Option[Options] {
-	return optparams.NewFuncOption(func(o *Options) {
-		o.MaxBurst = maxBurst
-	})
-}
-
-//WithCountPerPeriod 设置时间间隔内的token消减数
-func WithCountPerPeriod(countPerPeriod int64) optparams.Option[Options] {
-	return optparams.NewFuncOption(func(o *Options) {
-		o.CountPerPeriod = countPerPeriod
-	})
-}
-
-//WithPeriod 设置token消减间隔时长,单位s
-func WithPeriod(period int64) optparams.Option[Options] {
-	return optparams.NewFuncOption(func(o *Options) {
-		o.Period = period
 	})
 }
 
@@ -91,4 +66,20 @@ func WithAutoRefreshInterval(autoRefreshInterval string) optparams.Option[Option
 //WithTaskCron 设置定时器
 func WithTaskCron(taskCron *cron.Cron) optparams.Option[Options] {
 	return m(middlewarehelper.WithTaskCron(taskCron))
+}
+
+//WithInit cms专用,创建cms对象时使用prob方式初始化对应的key
+func WithInit() optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
+		if len(o.InitOpts) == 0 {
+			o.InitOpts = []optparams.Option[InitOpts]{InitWithCompression(100)}
+		}
+	})
+}
+
+//WithInitCompression cms专用,创建cms对象时使用prob方式初始化对应的key
+func WithInitCompression(compression int64) optparams.Option[Options] {
+	return optparams.NewFuncOption(func(o *Options) {
+		o.InitOpts = append(o.InitOpts, InitWithCompression(compression))
+	})
 }
